@@ -1,0 +1,44 @@
+name: 'AWS AccessDenied Explainer'
+description: 'Explains AWS AccessDenied errors with actionable fix suggestions'
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  error:
+    description: 'The AccessDenied error message to explain'
+    required: false
+  cloudtrail:
+    description: 'Path to CloudTrail event JSON file or directory'
+    required: false
+  enrich:
+    description: 'Enable AWS API enrichment (requires credentials and Pro license)'
+    required: false
+    default: 'false'
+  comment-on-pr:
+    description: 'Post explanation as PR comment (requires Pro license)'
+    required: false
+    default: 'false'
+  format:
+    description: 'Output format: human, json, sarif, github'
+    required: false
+    default: 'human'
+  license-key:
+    description: 'License key for Pro features'
+    required: false
+
+outputs:
+  explanation:
+    description: 'The generated explanation (JSON format)'
+  confidence:
+    description: 'Confidence level of the analysis'
+  action:
+    description: 'The denied AWS action'
+  resource:
+    description: 'The denied AWS resource'
+
+runs:
+  using: 'docker'
+  image: 'action/Dockerfile'
+  args:
+    - explain
