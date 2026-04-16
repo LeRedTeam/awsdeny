@@ -131,10 +131,14 @@ func isAccessDenied(event cloudTrailEvent) bool {
 		code == "unauthorizedaccess" ||
 		code == "unauthorizedoperation" ||
 		code == "client.unauthorizedaccess" ||
+		// Intentional catch-all for service-specific codes like SomeServiceAccessDeniedException
 		strings.Contains(code, "accessdenied")
 }
 
 func parseCloudTrailEvent(event cloudTrailEvent) internal.ParsedError {
+	// Sanitize error message before any parsing to prevent credential leakage
+	event.ErrorMessage = internal.Sanitize(event.ErrorMessage)
+
 	parsed := internal.ParsedError{
 		RawMessage: event.ErrorMessage,
 		Format:     "cloudtrail",

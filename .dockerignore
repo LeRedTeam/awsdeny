@@ -1,0 +1,10 @@
+.git
+.claude
+.github
+dist
+awsdeny
+*.test
+testdata
+test_functional.sh
+*.md
+!action/

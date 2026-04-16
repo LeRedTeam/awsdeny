@@ -88,12 +88,6 @@ func Parse(raw string) internal.ParsedError {
 	// Format E: S3 Minimal / bare "Access Denied"
 	if reS3Minimal.MatchString(strings.TrimSpace(innerMessage)) {
 		parsed.Format = "E"
-		// If we got operation from CLI wrapper, use it
-		if parsed.Operation != "" {
-			if action := inferActionFromOperation(parsed.Operation); action != "" {
-				parsed.Action = action
-			}
-		}
 		return parsed
 	}
 

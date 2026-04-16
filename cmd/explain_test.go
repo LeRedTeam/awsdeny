@@ -98,7 +98,9 @@ func TestWriteOutput_JSON(t *testing.T) {
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
 	result := analyzeError(context.TODO(), parsed)
 
-	writeOutput(&buf, result, "json")
+	if err := writeOutput(&buf, result, "json"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if !strings.Contains(buf.String(), `"status": "denied"`) {
 		t.Error("JSON output should contain status field")
 	}
@@ -109,7 +111,9 @@ func TestWriteOutput_Human(t *testing.T) {
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
 	result := analyzeError(context.TODO(), parsed)
 
-	writeOutput(&buf, result, "human")
+	if err := writeOutput(&buf, result, "human"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if !strings.Contains(buf.String(), "Access Denied") {
 		t.Error("human output should contain 'Access Denied'")
 	}
@@ -120,7 +124,9 @@ func TestWriteOutput_GitHub(t *testing.T) {
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
 	result := analyzeError(context.TODO(), parsed)
 
-	writeOutput(&buf, result, "github")
+	if err := writeOutput(&buf, result, "github"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if !strings.Contains(buf.String(), "## AWS AccessDenied") {
 		t.Error("github output should contain markdown header")
 	}

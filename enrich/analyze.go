@@ -95,6 +95,9 @@ func FindMatchingStatements(statements []internal.PolicyStatement, action, resou
 }
 
 func matchesStatement(stmt internal.PolicyStatement, action, resource string) bool {
+	if action == "" {
+		return false
+	}
 	actionMatch := false
 
 	if len(stmt.Actions) > 0 {
@@ -152,7 +155,7 @@ func AnalyzeStatements(statements []internal.PolicyStatement, action, resource s
 		if strings.EqualFold(stmt.Effect, "Deny") && matchesStatement(stmt, action, resource) {
 			reason := "Explicit deny statement found"
 			if len(stmt.Conditions) > 0 {
-				reason += " with conditions: " + formatConditions(stmt.Conditions)
+				reason = "Potential explicit deny (has conditions that may not apply to your request): " + formatConditions(stmt.Conditions)
 			}
 			if stmt.Sid != "" {
 				reason = "Statement '" + stmt.Sid + "': " + reason

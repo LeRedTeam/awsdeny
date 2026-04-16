@@ -49,10 +49,6 @@ var catalog = []Heuristic{
 			if strings.Contains(lower, "region") {
 				return true
 			}
-			// If we have region from CloudTrail, this might be region-related
-			if p.Region != "" && p.ParseLevel >= 4 {
-				return true
-			}
 			return false
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
@@ -187,8 +183,7 @@ var catalog = []Heuristic{
 			if hasMFAKeyword {
 				return true
 			}
-			fromSession := p.SessionContext != nil && p.SessionContext["mfaAuthenticated"] == "false"
-			return fromSession && strings.Contains(lower, "mfa")
+			return false
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
 			return internal.Explanation{
@@ -291,7 +286,7 @@ var catalog = []Heuristic{
 	// ──────────────────────────── Cross-Account ──────────────────────────────────
 	{
 		ID:              "XACCT-001",
-		Name:            "Missing Trust Policy",
+		Name:            "Cross-Account AssumeRole",
 		Category:        "cross-account",
 		ConfidenceBoost: 0.25,
 		Match: func(p internal.ParsedError) bool {
@@ -596,6 +591,7 @@ var catalog = []Heuristic{
 		},
 	},
 	{
+		// MISC-002 (Service Not Available in Region) intentionally omitted from MVP — low signal, hard to detect reliably.
 		ID:              "MISC-003",
 		Name:            "Root User Restrictions",
 		Category:        "common",

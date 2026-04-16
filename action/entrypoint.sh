@@ -27,17 +27,19 @@ JSON_OUTPUT=$(awsdeny "$@" --format json 2>/dev/null) || true
 # Display human-readable output to the log
 awsdeny "$@" --format human || true
 
-# Write GitHub-flavored markdown to job summary
-if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-    awsdeny "$@" --format github >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+# Generate GitHub markdown once, reuse for summary and PR comment
+GITHUB_MD=$(awsdeny "$@" --format github 2>/dev/null) || true
+
+# Write to job summary
+if [ -n "$GITHUB_STEP_SUMMARY" ] && [ -n "$GITHUB_MD" ]; then
+    echo "$GITHUB_MD" >> "$GITHUB_STEP_SUMMARY"
 fi
 
 # Post PR comment if requested
 if [ "$INPUT_COMMENT_ON_PR" = "true" ] && [ -n "$GITHUB_TOKEN" ]; then
     PR_NUMBER=$(echo "$GITHUB_REF" | sed -n 's|refs/pull/\([0-9]*\)/.*|\1|p')
-    if [ -n "$PR_NUMBER" ]; then
-        COMMENT=$(awsdeny "$@" --format github 2>/dev/null) || true
-        ESCAPED=$(printf '%s' "$COMMENT" | jq -Rs .)
+    if [ -n "$PR_NUMBER" ] && [ -n "$GITHUB_MD" ]; then
+        ESCAPED=$(printf '%s' "$GITHUB_MD" | jq -Rs .)
         curl -sf \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \

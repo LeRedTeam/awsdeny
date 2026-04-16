@@ -105,6 +105,65 @@ func SARIF(w io.Writer, result internal.AnalysisResult, version string) error {
 	return err
 }
 
+// SARIFMulti writes a single SARIF document containing multiple results.
+func SARIFMulti(w io.Writer, results []internal.AnalysisResult, version string) error {
+	var rules []sarifRule
+	var sarifResults []sarifResult
+	seenRules := map[string]bool{}
+
+	for _, result := range results {
+		e := result.Explanation
+		ruleID := "awsdeny/" + e.HeuristicID
+		if e.HeuristicID == "" {
+			ruleID = "awsdeny/unknown"
+		}
+
+		if !seenRules[ruleID] {
+			seenRules[ruleID] = true
+			rules = append(rules, sarifRule{
+				ID:               ruleID,
+				Name:             e.Summary,
+				ShortDescription: sarifMessage{Text: e.Summary},
+				FullDescription:  sarifMessage{Text: e.Reason},
+				Help:             sarifMessage{Text: formatSuggestions(e.Suggestions)},
+				Properties:       sarifProperties{Tags: []string{"security", "iam", "aws"}},
+			})
+		}
+
+		sarifResults = append(sarifResults, sarifResult{
+			RuleID:  ruleID,
+			Level:   "error",
+			Message: sarifMessage{Text: e.Reason},
+		})
+	}
+
+	report := sarifReport{
+		Schema:  "https://json.schemastore.org/sarif-2.1.0.json",
+		Version: "2.1.0",
+		Runs: []sarifRun{
+			{
+				Tool: sarifTool{
+					Driver: sarifDriver{
+						Name:           "awsdeny",
+						Version:        version,
+						InformationURI: "https://github.com/leredteam/awsdeny",
+						Rules:          rules,
+					},
+				},
+				Results: sarifResults,
+			},
+		},
+	}
+
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling SARIF: %w", err)
+	}
+
+	_, err = fmt.Fprintln(w, string(data))
+	return err
+}
+
 func formatSuggestions(suggestions []internal.Suggestion) string {
 	text := "Suggested fixes:\n"
 	for i, s := range suggestions {

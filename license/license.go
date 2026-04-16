@@ -111,7 +111,7 @@ func Validate(key string) (*License, error) {
 
 	// Check expiration with grace period
 	if time.Now().After(expiresAt.Add(gracePeriod)) {
-		return lic, fmt.Errorf("license expired on %s (grace period ended %s)",
+		return nil, fmt.Errorf("license expired on %s (grace period ended %s)",
 			expiresAt.Format("2006-01-02"),
 			expiresAt.Add(gracePeriod).Format("2006-01-02"))
 	}

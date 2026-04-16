@@ -114,7 +114,9 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	result := analyzeError(cmd.Context(), parsed)
 
 	// Output
-	writeOutput(os.Stdout, result, format)
+	if err := writeOutput(os.Stdout, result, format); err != nil {
+		return fmt.Errorf("writing output: %w", err)
+	}
 	return nil
 }
 
@@ -195,41 +197,49 @@ func handleCloudTrail(ctx context.Context, path string, format string) error {
 
 	var results []internal.AnalysisResult
 	for _, parsed := range parsedErrors {
-		// Sanitize CloudTrail event data (may contain credentials in requestParameters)
-		parsed.RawMessage = internal.Sanitize(parsed.RawMessage)
 		results = append(results, analyzeError(ctx, parsed))
 	}
 
-	writeMultiOutput(os.Stdout, results, format)
+	if err := writeMultiOutput(os.Stdout, results, format); err != nil {
+		return fmt.Errorf("writing output: %w", err)
+	}
 	return nil
 }
 
-func writeOutput(w io.Writer, result internal.AnalysisResult, format string) {
+func writeOutput(w io.Writer, result internal.AnalysisResult, format string) error {
 	switch format {
 	case "json":
-		if err := output.JSON(w, result); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing JSON: %s\n", err)
-		}
+		return output.JSON(w, result)
 	case "sarif":
-		if err := output.SARIF(w, result, version); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing SARIF: %s\n", err)
-		}
+		return output.SARIF(w, result, version)
 	case "github":
 		output.GitHubComment(w, result)
 	default:
 		output.Human(w, result)
 	}
+	return nil
 }
 
-func writeMultiOutput(w io.Writer, results []internal.AnalysisResult, format string) {
+func writeMultiOutput(w io.Writer, results []internal.AnalysisResult, format string) error {
 	switch format {
 	case "json":
-		if err := output.JSONArray(w, results); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing JSON: %s\n", err)
-		}
+		return output.JSONArray(w, results)
+	case "sarif":
+		return output.SARIFMulti(w, results, version)
 	default:
-		for _, result := range results {
-			writeOutput(w, result, format)
+		for i, result := range results {
+			if i > 0 {
+				switch format {
+				case "github":
+					fmt.Fprintln(w, "---")
+				default:
+					fmt.Fprintln(w)
+				}
+			}
+			if err := writeOutput(w, result, format); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
