@@ -4,7 +4,3 @@ linters:
   default: standard
   disable:
     - errcheck
-
-run:
-  exclude-dirs:
-    - action
