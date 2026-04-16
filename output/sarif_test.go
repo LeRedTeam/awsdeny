@@ -67,7 +67,9 @@ func TestSARIFOutput_EmptyHeuristicID(t *testing.T) {
 
 	// Should default to "awsdeny/unknown"
 	var parsed map[string]interface{}
-	json.Unmarshal(buf.Bytes(), &parsed)
+	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
 	runs := parsed["runs"].([]interface{})
 	run := runs[0].(map[string]interface{})
 	results := run["results"].([]interface{})

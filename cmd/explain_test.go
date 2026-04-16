@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -96,7 +97,7 @@ func TestGetErrorMessage_NoInput(t *testing.T) {
 func TestWriteOutput_JSON(t *testing.T) {
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
-	result := analyzeError(nil, parsed)
+	result := analyzeError(context.TODO(), parsed)
 
 	writeOutput(&buf, result, "json")
 	if !strings.Contains(buf.String(), `"status": "denied"`) {
@@ -107,7 +108,7 @@ func TestWriteOutput_JSON(t *testing.T) {
 func TestWriteOutput_Human(t *testing.T) {
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
-	result := analyzeError(nil, parsed)
+	result := analyzeError(context.TODO(), parsed)
 
 	writeOutput(&buf, result, "human")
 	if !strings.Contains(buf.String(), "Access Denied") {
@@ -118,7 +119,7 @@ func TestWriteOutput_Human(t *testing.T) {
 func TestWriteOutput_GitHub(t *testing.T) {
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
-	result := analyzeError(nil, parsed)
+	result := analyzeError(context.TODO(), parsed)
 
 	writeOutput(&buf, result, "github")
 	if !strings.Contains(buf.String(), "## AWS AccessDenied") {

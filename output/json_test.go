@@ -67,7 +67,9 @@ func TestJSONOutput_EmptyWarnings(t *testing.T) {
 
 	// Verify warnings field is omitted when empty
 	var parsed map[string]interface{}
-	json.Unmarshal(buf.Bytes(), &parsed)
+	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
 	if _, exists := parsed["warnings"]; exists {
 		t.Error("warnings should be omitted when empty")
 	}
