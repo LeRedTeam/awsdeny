@@ -63,33 +63,33 @@ func Validate(key string) (*License, error) {
 	// Decode the license key
 	keyData, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
-		return nil, fmt.Errorf("invalid license key format")
+		return nil, fmt.Errorf("invalid license key: corrupt encoding")
 	}
 
 	var lk licenseKey
 	if err := json.Unmarshal(keyData, &lk); err != nil {
-		return nil, fmt.Errorf("invalid license key structure")
+		return nil, fmt.Errorf("invalid license key: corrupt structure")
 	}
 
 	// Verify signature
 	payloadBytes, err := base64.StdEncoding.DecodeString(lk.Payload)
 	if err != nil {
-		return nil, fmt.Errorf("invalid license payload")
+		return nil, fmt.Errorf("invalid license key: corrupt payload")
 	}
 
 	sigBytes, err := base64.StdEncoding.DecodeString(lk.Signature)
 	if err != nil {
-		return nil, fmt.Errorf("invalid license signature")
+		return nil, fmt.Errorf("invalid license key: corrupt signature")
 	}
 
 	if !ed25519.Verify(pubKey, payloadBytes, sigBytes) {
-		return nil, fmt.Errorf("license signature verification failed")
+		return nil, fmt.Errorf("invalid license key: signature verification failed")
 	}
 
 	// Parse payload
 	var payload licensePayload
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return nil, fmt.Errorf("invalid license payload data")
+		return nil, fmt.Errorf("invalid license key: corrupt payload data")
 	}
 
 	issuedAt, err := time.Parse(time.RFC3339, payload.IssuedAt)

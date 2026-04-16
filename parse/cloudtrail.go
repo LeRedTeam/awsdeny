@@ -216,6 +216,17 @@ func mapEventToAction(eventSource, eventName string) string {
 	return ""
 }
 
+// partitionFromRegion infers the AWS partition from the region string.
+func partitionFromRegion(region string) string {
+	if strings.HasPrefix(region, "us-gov-") {
+		return "aws-us-gov"
+	}
+	if strings.HasPrefix(region, "cn-") {
+		return "aws-cn"
+	}
+	return "aws"
+}
+
 // inferResourceFromParams tries to build a resource ARN from CloudTrail requestParameters.
 func inferResourceFromParams(event cloudTrailEvent) string {
 	if event.RequestParameters == nil {
@@ -223,6 +234,7 @@ func inferResourceFromParams(event cloudTrailEvent) string {
 	}
 
 	service := strings.TrimSuffix(event.EventSource, ".amazonaws.com")
+	partition := partitionFromRegion(event.AWSRegion)
 
 	switch service {
 	case "s3":
@@ -230,21 +242,21 @@ func inferResourceFromParams(event cloudTrailEvent) string {
 		key, _ := event.RequestParameters["key"].(string)
 		if bucket != "" {
 			if key != "" {
-				return "arn:aws:s3:::" + bucket + "/" + key
+				return fmt.Sprintf("arn:%s:s3:::%s/%s", partition, bucket, key)
 			}
-			return "arn:aws:s3:::" + bucket
+			return fmt.Sprintf("arn:%s:s3:::%s", partition, bucket)
 		}
 	case "dynamodb":
 		table, _ := event.RequestParameters["tableName"].(string)
 		if table != "" && event.AWSRegion != "" && event.UserIdentity.AccountID != "" {
-			return fmt.Sprintf("arn:aws:dynamodb:%s:%s:table/%s",
-				event.AWSRegion, event.UserIdentity.AccountID, table)
+			return fmt.Sprintf("arn:%s:dynamodb:%s:%s:table/%s",
+				partition, event.AWSRegion, event.UserIdentity.AccountID, table)
 		}
 	case "lambda":
 		funcName, _ := event.RequestParameters["functionName"].(string)
 		if funcName != "" && event.AWSRegion != "" && event.UserIdentity.AccountID != "" {
-			return fmt.Sprintf("arn:aws:lambda:%s:%s:function:%s",
-				event.AWSRegion, event.UserIdentity.AccountID, funcName)
+			return fmt.Sprintf("arn:%s:lambda:%s:%s:function:%s",
+				partition, event.AWSRegion, event.UserIdentity.AccountID, funcName)
 		}
 	}
 

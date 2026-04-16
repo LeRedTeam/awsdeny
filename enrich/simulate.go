@@ -19,7 +19,7 @@ type SimulateResult struct {
 }
 
 // Simulate runs iam:SimulatePrincipalPolicy for the given parameters.
-func (c *Client) Simulate(ctx context.Context, principal, action, resource string) (*SimulateResult, error) {
+func (c *Client) Simulate(ctx context.Context, principal, action, resource string, contextEntries []iamtypes.ContextEntry) (*SimulateResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -34,6 +34,10 @@ func (c *Client) Simulate(ctx context.Context, principal, action, resource strin
 
 	if resource != "" {
 		input.ResourceArns = []string{resource}
+	}
+
+	if len(contextEntries) > 0 {
+		input.ContextEntries = contextEntries
 	}
 
 	out, err := c.IAM.SimulatePrincipalPolicy(ctx, input)

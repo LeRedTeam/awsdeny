@@ -2,7 +2,9 @@ package enrich
 
 import (
 	"context"
-	"log/slog"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 
 	"github.com/leredteam/awsdeny/internal"
 )
@@ -16,7 +18,6 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 	if parsed.PolicyARN != "" {
 		doc, statements, err := client.FetchPolicy(ctx, parsed.PolicyARN)
 		if err != nil {
-			slog.Warn("policy fetch failed", "error", err)
 			result.Warnings = append(result.Warnings,
 				"Enrichment failed: "+err.Error()+". Ensure your AWS credentials have iam:GetPolicy permission.")
 		} else {
@@ -36,7 +37,6 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 	if parsed.EncodedMessage != "" {
 		decoded, err := client.DecodeAuthorizationMessage(ctx, parsed.EncodedMessage)
 		if err != nil {
-			slog.Warn("decode authorization message failed", "error", err)
 			result.Warnings = append(result.Warnings,
 				"Could not decode EC2 authorization message: "+err.Error())
 		} else {
@@ -46,9 +46,31 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 
 	// Level 3: Simulation
 	if parsed.Principal != "" && parsed.Action != "" {
-		simResult, err := client.Simulate(ctx, parsed.Principal, parsed.Action, parsed.Resource)
+		var contextEntries []iamtypes.ContextEntry
+		if parsed.SourceIP != "" {
+			contextEntries = append(contextEntries, iamtypes.ContextEntry{
+				ContextKeyName:   aws.String("aws:SourceIp"),
+				ContextKeyType:   iamtypes.ContextKeyTypeEnumIp,
+				ContextKeyValues: []string{parsed.SourceIP},
+			})
+		}
+		if parsed.VPCEndpointID != "" {
+			contextEntries = append(contextEntries, iamtypes.ContextEntry{
+				ContextKeyName:   aws.String("aws:SourceVpce"),
+				ContextKeyType:   iamtypes.ContextKeyTypeEnumString,
+				ContextKeyValues: []string{parsed.VPCEndpointID},
+			})
+		}
+		if parsed.SessionContext != nil && parsed.SessionContext["mfaAuthenticated"] != "" {
+			contextEntries = append(contextEntries, iamtypes.ContextEntry{
+				ContextKeyName:   aws.String("aws:MultiFactorAuthPresent"),
+				ContextKeyType:   iamtypes.ContextKeyTypeEnumBoolean,
+				ContextKeyValues: []string{parsed.SessionContext["mfaAuthenticated"]},
+			})
+		}
+
+		simResult, err := client.Simulate(ctx, parsed.Principal, parsed.Action, parsed.Resource, contextEntries)
 		if err != nil {
-			slog.Warn("simulation failed", "error", err)
 			result.Warnings = append(result.Warnings,
 				"Simulation failed: "+err.Error()+". Ensure your AWS credentials have iam:SimulatePrincipalPolicy permission.")
 		} else {

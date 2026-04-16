@@ -103,7 +103,7 @@ func matchesStatement(stmt internal.PolicyStatement, action, resource string) bo
 	if len(stmt.Actions) > 0 {
 		// Action: match if any pattern matches
 		for _, a := range stmt.Actions {
-			if matchesPattern(a, action) {
+			if matchActionPattern(a, action) {
 				actionMatch = true
 				break
 			}
@@ -112,7 +112,7 @@ func matchesStatement(stmt internal.PolicyStatement, action, resource string) bo
 		// NotAction: match if the action is NOT in the exclusion list
 		excluded := false
 		for _, a := range stmt.NotActions {
-			if matchesPattern(a, action) {
+			if matchActionPattern(a, action) {
 				excluded = true
 				break
 			}
@@ -129,34 +129,49 @@ func matchesStatement(stmt internal.PolicyStatement, action, resource string) bo
 	}
 
 	for _, r := range stmt.Resources {
-		if matchesPattern(r, resource) {
+		if matchResourcePattern(r, resource) {
 			return true
 		}
 	}
 	return false
 }
 
-// matchesPattern checks if a pattern (potentially with wildcards) matches a value.
-func matchesPattern(pattern, value string) bool {
+// matchActionPattern checks if an IAM action pattern matches an action.
+// Actions are case-insensitive in IAM.
+func matchActionPattern(pattern, action string) bool {
 	if pattern == "*" {
 		return true
 	}
-	// Handle prefix wildcards like "s3:*"
 	if strings.HasSuffix(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(strings.ToLower(value), strings.ToLower(prefix))
+		return strings.HasPrefix(strings.ToLower(action), strings.ToLower(strings.TrimSuffix(pattern, "*")))
 	}
-	return strings.EqualFold(pattern, value)
+	return strings.EqualFold(pattern, action)
+}
+
+// matchResourcePattern checks if an IAM resource pattern matches a resource ARN.
+// Resource ARNs contain case-sensitive components (e.g., S3 object keys).
+func matchResourcePattern(pattern, resource string) bool {
+	if pattern == "*" {
+		return true
+	}
+	if strings.HasSuffix(pattern, "*") {
+		return strings.HasPrefix(resource, strings.TrimSuffix(pattern, "*"))
+	}
+	return pattern == resource
 }
 
 // AnalyzeStatements analyzes matched statements to determine the cause of denial.
 func AnalyzeStatements(statements []internal.PolicyStatement, action, resource string) (string, string) {
 	for _, stmt := range statements {
 		if strings.EqualFold(stmt.Effect, "Deny") && matchesStatement(stmt, action, resource) {
-			reason := "Explicit deny statement found"
 			if len(stmt.Conditions) > 0 {
-				reason = "Potential explicit deny (has conditions that may not apply to your request): " + formatConditions(stmt.Conditions)
+				reason := "Potential explicit deny (has conditions that may not apply to your request): " + formatConditions(stmt.Conditions)
+				if stmt.Sid != "" {
+					reason = "Statement '" + stmt.Sid + "': " + reason
+				}
+				return "conditional", reason
 			}
+			reason := "Explicit deny statement found"
 			if stmt.Sid != "" {
 				reason = "Statement '" + stmt.Sid + "': " + reason
 			}

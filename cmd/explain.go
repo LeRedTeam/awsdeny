@@ -59,13 +59,14 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check license for Pro features
+	enrichActive := doEnrich
 	licenseKey := os.Getenv("AWSDENY_LICENSE_KEY")
-	if doEnrich {
+	if enrichActive {
 		result := license.CheckProFeature(licenseKey, "--enrich")
 		if result.Err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: %s\n", result.Err)
 			fmt.Fprintf(os.Stderr, "Falling back to Level 1 analysis (parse + heuristic only)\n\n")
-			doEnrich = false
+			enrichActive = false
 		} else if result.Warning != "" {
 			fmt.Fprintf(os.Stderr, "Warning: %s\n", result.Warning)
 		}
@@ -91,7 +92,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 
 	// Handle CloudTrail input
 	if cloudtrailPath != "" {
-		return handleCloudTrail(cmd.Context(), cloudtrailPath, format)
+		return handleCloudTrail(cmd.Context(), cloudtrailPath, format, enrichActive)
 	}
 
 	// Get error message
@@ -111,7 +112,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run analysis
-	result := analyzeError(cmd.Context(), parsed)
+	result := analyzeError(cmd.Context(), parsed, enrichActive)
 
 	// Output
 	if err := writeOutput(os.Stdout, result, format); err != nil {
@@ -146,7 +147,7 @@ func getErrorMessage(args []string) (string, error) {
 	return "", fmt.Errorf("provide an error message with --error, --stdin, or --cloudtrail")
 }
 
-func analyzeError(ctx context.Context, parsed internal.ParsedError) internal.AnalysisResult {
+func analyzeError(ctx context.Context, parsed internal.ParsedError, enrichActive bool) internal.AnalysisResult {
 	// Level 1: Heuristic analysis
 	explanation := heuristic.Analyze(parsed)
 
@@ -156,7 +157,7 @@ func analyzeError(ctx context.Context, parsed internal.ParsedError) internal.Ana
 	}
 
 	// Level 2-3: Enrichment (if requested and licensed)
-	if doEnrich {
+	if enrichActive {
 		client, err := enrich.NewClient(ctx, awsRegion, awsProfile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: Could not create AWS client: %s\n", err)
@@ -174,7 +175,7 @@ func analyzeError(ctx context.Context, parsed internal.ParsedError) internal.Ana
 	return result
 }
 
-func handleCloudTrail(ctx context.Context, path string, format string) error {
+func handleCloudTrail(ctx context.Context, path string, format string, enrichActive bool) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("accessing CloudTrail path: %w", err)
@@ -187,7 +188,7 @@ func handleCloudTrail(ctx context.Context, path string, format string) error {
 		parsedErrors, err = parse.ParseCloudTrailFile(path)
 	}
 	if err != nil {
-		return fmt.Errorf("parsing CloudTrail: %w", err)
+		return internal.NewExitError(internal.ExitParseError, fmt.Sprintf("parsing CloudTrail: %s", err))
 	}
 
 	if len(parsedErrors) == 0 {
@@ -197,7 +198,7 @@ func handleCloudTrail(ctx context.Context, path string, format string) error {
 
 	var results []internal.AnalysisResult
 	for _, parsed := range parsedErrors {
-		results = append(results, analyzeError(ctx, parsed))
+		results = append(results, analyzeError(ctx, parsed, enrichActive))
 	}
 
 	if err := writeMultiOutput(os.Stdout, results, format); err != nil {

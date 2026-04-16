@@ -77,10 +77,10 @@ func TestFindMatchingStatements(t *testing.T) {
 	}
 }
 
-func TestMatchesPattern(t *testing.T) {
+func TestMatchActionPattern(t *testing.T) {
 	tests := []struct {
 		pattern  string
-		value    string
+		action   string
 		expected bool
 	}{
 		{"*", "anything", true},
@@ -88,14 +88,36 @@ func TestMatchesPattern(t *testing.T) {
 		{"s3:*", "ec2:RunInstances", false},
 		{"s3:GetObject", "s3:GetObject", true},
 		{"s3:GetObject", "s3:PutObject", false},
-		{"arn:aws:s3:::bucket/*", "arn:aws:s3:::bucket/key", true},
-		{"arn:aws:s3:::bucket/*", "arn:aws:s3:::other-bucket/key", false},
+		// Actions are case-insensitive
+		{"s3:GetObject", "S3:getobject", true},
 	}
 
 	for _, tt := range tests {
-		result := matchesPattern(tt.pattern, tt.value)
+		result := matchActionPattern(tt.pattern, tt.action)
 		if result != tt.expected {
-			t.Errorf("matchesPattern(%q, %q) = %v, want %v", tt.pattern, tt.value, result, tt.expected)
+			t.Errorf("matchActionPattern(%q, %q) = %v, want %v", tt.pattern, tt.action, result, tt.expected)
+		}
+	}
+}
+
+func TestMatchResourcePattern(t *testing.T) {
+	tests := []struct {
+		pattern  string
+		resource string
+		expected bool
+	}{
+		{"*", "anything", true},
+		{"arn:aws:s3:::bucket/*", "arn:aws:s3:::bucket/key", true},
+		{"arn:aws:s3:::bucket/*", "arn:aws:s3:::other-bucket/key", false},
+		// Resource ARNs are case-sensitive (e.g., S3 object keys)
+		{"arn:aws:s3:::bucket/Key", "arn:aws:s3:::bucket/Key", true},
+		{"arn:aws:s3:::bucket/Key", "arn:aws:s3:::bucket/key", false},
+	}
+
+	for _, tt := range tests {
+		result := matchResourcePattern(tt.pattern, tt.resource)
+		if result != tt.expected {
+			t.Errorf("matchResourcePattern(%q, %q) = %v, want %v", tt.pattern, tt.resource, result, tt.expected)
 		}
 	}
 }

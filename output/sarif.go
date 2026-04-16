@@ -45,13 +45,37 @@ type sarifMessage struct {
 }
 
 type sarifResult struct {
-	RuleID  string       `json:"ruleId"`
-	Level   string       `json:"level"`
-	Message sarifMessage `json:"message"`
+	RuleID    string          `json:"ruleId"`
+	Level     string          `json:"level"`
+	Message   sarifMessage    `json:"message"`
+	Locations []sarifLocation `json:"locations,omitempty"`
+}
+
+type sarifLocation struct {
+	PhysicalLocation *sarifPhysicalLocation `json:"physicalLocation,omitempty"`
+}
+
+type sarifPhysicalLocation struct {
+	ArtifactLocation *sarifArtifactLocation `json:"artifactLocation,omitempty"`
+}
+
+type sarifArtifactLocation struct {
+	URI string `json:"uri"`
 }
 
 type sarifProperties struct {
 	Tags []string `json:"tags,omitempty"`
+}
+
+func sarifLevelFromConfidence(confidence string) string {
+	switch confidence {
+	case "very-high", "high":
+		return "error"
+	case "medium":
+		return "warning"
+	default:
+		return "note"
+	}
 }
 
 // SARIF writes a SARIF-formatted report to the writer.
@@ -88,8 +112,13 @@ func SARIF(w io.Writer, result internal.AnalysisResult, version string) error {
 				Results: []sarifResult{
 					{
 						RuleID:  ruleID,
-						Level:   "error",
+						Level:   sarifLevelFromConfidence(e.Confidence),
 						Message: sarifMessage{Text: e.Reason},
+						Locations: []sarifLocation{{
+							PhysicalLocation: &sarifPhysicalLocation{
+								ArtifactLocation: &sarifArtifactLocation{URI: "awsdeny://analysis"},
+							},
+						}},
 					},
 				},
 			},
@@ -132,8 +161,13 @@ func SARIFMulti(w io.Writer, results []internal.AnalysisResult, version string) 
 
 		sarifResults = append(sarifResults, sarifResult{
 			RuleID:  ruleID,
-			Level:   "error",
+			Level:   sarifLevelFromConfidence(e.Confidence),
 			Message: sarifMessage{Text: e.Reason},
+			Locations: []sarifLocation{{
+				PhysicalLocation: &sarifPhysicalLocation{
+					ArtifactLocation: &sarifArtifactLocation{URI: "awsdeny://analysis"},
+				},
+			}},
 		})
 	}
 

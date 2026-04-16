@@ -147,7 +147,9 @@ var catalog = []Heuristic{
 			lower := strings.ToLower(p.Reason + p.RawMessage)
 			return strings.Contains(lower, "sourceip") ||
 				strings.Contains(lower, "source ip") ||
-				strings.Contains(lower, "ipaddress")
+				strings.Contains(lower, "ipaddress") ||
+				strings.Contains(lower, "cidr") ||
+				strings.Contains(lower, "network restriction")
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
 			return internal.Explanation{
@@ -631,6 +633,9 @@ var catalog = []Heuristic{
 		},
 	},
 	{
+		// MISC-005 fires for Format "E" (bare "Access Denied"). This also matches
+		// CLI-wrapped errors (Format G) because the wrapper is stripped first and
+		// the inner "Access Denied" text triggers Format E detection in parse/error.go.
 		ID:              "MISC-005",
 		Name:            "S3 404 Masking as 403",
 		Category:        "common",

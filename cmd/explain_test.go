@@ -96,7 +96,7 @@ func TestGetErrorMessage_NoInput(t *testing.T) {
 func TestWriteOutput_JSON(t *testing.T) {
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
-	result := analyzeError(context.TODO(), parsed)
+	result := analyzeError(context.TODO(), parsed, false)
 
 	if err := writeOutput(&buf, result, "json"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -109,7 +109,7 @@ func TestWriteOutput_JSON(t *testing.T) {
 func TestWriteOutput_Human(t *testing.T) {
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
-	result := analyzeError(context.TODO(), parsed)
+	result := analyzeError(context.TODO(), parsed, false)
 
 	if err := writeOutput(&buf, result, "human"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -122,7 +122,7 @@ func TestWriteOutput_Human(t *testing.T) {
 func TestWriteOutput_GitHub(t *testing.T) {
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
-	result := analyzeError(context.TODO(), parsed)
+	result := analyzeError(context.TODO(), parsed, false)
 
 	if err := writeOutput(&buf, result, "github"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
