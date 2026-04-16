@@ -21,29 +21,29 @@ if [ "$INPUT_ENRICH" = "true" ]; then
     set -- "$@" --enrich
 fi
 
-# Run once with JSON output to capture structured data
-JSON_OUTPUT=$(awsdeny "$@" --format json 2>&1) || true
+# Run once with JSON to capture structured data (discard stderr so warnings don't corrupt JSON)
+JSON_OUTPUT=$(awsdeny "$@" --format json 2>/dev/null) || true
 
-# Display human-readable output
-awsdeny "$@" --format human 2>&1 || true
+# Display human-readable output to the log
+awsdeny "$@" --format human || true
 
 # Write GitHub-flavored markdown to job summary
 if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-    awsdeny "$@" --format github >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+    awsdeny "$@" --format github >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
 fi
 
 # Post PR comment if requested
 if [ "$INPUT_COMMENT_ON_PR" = "true" ] && [ -n "$GITHUB_TOKEN" ]; then
-    PR_NUMBER=$(echo "$GITHUB_REF" | grep -oP '(?<=pull/)\d+' || true)
+    PR_NUMBER=$(echo "$GITHUB_REF" | sed -n 's|refs/pull/\([0-9]*\)/.*|\1|p')
     if [ -n "$PR_NUMBER" ]; then
-        COMMENT=$(awsdeny "$@" --format github 2>&1) || true
+        COMMENT=$(awsdeny "$@" --format github 2>/dev/null) || true
         ESCAPED=$(printf '%s' "$COMMENT" | jq -Rs .)
         curl -sf \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
             -d "{\"body\": $ESCAPED}" \
-            >/dev/null 2>&1 || echo "Warning: Failed to post PR comment"
+            >/dev/null 2>&1 || echo "Warning: Failed to post PR comment" >&2
     fi
 fi
 

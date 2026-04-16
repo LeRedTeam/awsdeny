@@ -78,3 +78,15 @@ func TestSanitize_SecretAccessKeyLowercase(t *testing.T) {
 		t.Error("secret access key (lowercase) should be redacted")
 	}
 }
+
+func TestSanitize_TemporaryAccessKeyASIA(t *testing.T) {
+	// ASIA + exactly 16 uppercase alphanumeric chars = 20 chars total
+	input := "Key ASIAIOSFODNN7EXAMPLE was used for the request"
+	result := Sanitize(input)
+	if strings.Contains(result, "ASIAIOSFODNN7EXAMPLE") {
+		t.Error("ASIA temporary key should be redacted")
+	}
+	if !strings.Contains(result, "[REDACTED]") {
+		t.Error("should contain [REDACTED]")
+	}
+}

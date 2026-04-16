@@ -42,14 +42,18 @@ var catalog = []Heuristic{
 			if p.PolicyType != "scp" {
 				return false
 			}
-			// Globally available services are unlikely to be region-restricted
-			globalActions := []string{"sts:", "iam:", "cloudfront:", "route53:", "waf:", "organizations:"}
-			for _, ga := range globalActions {
-				if strings.HasPrefix(p.Action, ga) {
-					return false
-				}
+			// Only match when there's actual evidence of a region issue:
+			// - error or reason mentions "region"
+			// - CloudTrail provides region context showing a non-standard region
+			lower := strings.ToLower(p.Reason + p.RawMessage)
+			if strings.Contains(lower, "region") {
+				return true
 			}
-			return true
+			// If we have region from CloudTrail, this might be region-related
+			if p.Region != "" && p.ParseLevel >= 4 {
+				return true
+			}
+			return false
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
 			return internal.Explanation{

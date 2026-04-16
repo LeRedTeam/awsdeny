@@ -1,9 +1,10 @@
 FROM golang:1.25-alpine AS builder
 WORKDIR /app
+ARG LICENSE_PUBLIC_KEY=""
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /awsdeny .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X github.com/leredteam/awsdeny/license.publicKeyB64=${LICENSE_PUBLIC_KEY}" -o /awsdeny .
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates curl jq

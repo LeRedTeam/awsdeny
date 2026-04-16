@@ -143,6 +143,26 @@ func TestParseFormatB_IdentityWithArticleAn(t *testing.T) {
 	assertEqual(t, "identity", p.PolicyType)
 }
 
+func TestParseGovCloud(t *testing.T) {
+	input := "User: arn:aws-us-gov:iam::123456789012:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws-us-gov:s3:::bucket/key"
+	p := Parse(input)
+
+	assertEqual(t, "A", p.Format)
+	assertEqual(t, "s3:GetObject", p.Action)
+	assertEqual(t, "arn:aws-us-gov:s3:::bucket/key", p.Resource)
+	assertEqual(t, "arn:aws-us-gov:iam::123456789012:role/MyRole", p.Principal)
+}
+
+func TestParseChinaPartition(t *testing.T) {
+	input := "User: arn:aws-cn:iam::123456789012:role/MyRole is not authorized to perform: s3:PutObject on resource: arn:aws-cn:s3:::bucket/key with an explicit deny in a service control policy"
+	p := Parse(input)
+
+	assertEqual(t, "B", p.Format)
+	assertEqual(t, "explicit", p.DenyType)
+	assertEqual(t, "scp", p.PolicyType)
+	assertEqual(t, "arn:aws-cn:iam::123456789012:role/MyRole", p.Principal)
+}
+
 func TestParse_UnknownFormat(t *testing.T) {
 	input := "Something went wrong with permission"
 	p := Parse(input)

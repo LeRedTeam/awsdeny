@@ -193,11 +193,14 @@ func handleCloudTrail(ctx context.Context, path string, format string) error {
 		return nil
 	}
 
+	var results []internal.AnalysisResult
 	for _, parsed := range parsedErrors {
-		result := analyzeError(ctx, parsed)
-		writeOutput(os.Stdout, result, format)
+		// Sanitize CloudTrail event data (may contain credentials in requestParameters)
+		parsed.RawMessage = internal.Sanitize(parsed.RawMessage)
+		results = append(results, analyzeError(ctx, parsed))
 	}
 
+	writeMultiOutput(os.Stdout, results, format)
 	return nil
 }
 
@@ -215,5 +218,18 @@ func writeOutput(w io.Writer, result internal.AnalysisResult, format string) {
 		output.GitHubComment(w, result)
 	default:
 		output.Human(w, result)
+	}
+}
+
+func writeMultiOutput(w io.Writer, results []internal.AnalysisResult, format string) {
+	switch format {
+	case "json":
+		if err := output.JSONArray(w, results); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing JSON: %s\n", err)
+		}
+	default:
+		for _, result := range results {
+			writeOutput(w, result, format)
+		}
 	}
 }

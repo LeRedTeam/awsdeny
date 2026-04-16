@@ -2,31 +2,34 @@ package parse
 
 import "regexp"
 
+// arnPrefix matches the ARN partition: aws, aws-us-gov (GovCloud), aws-cn (China)
+const arnPrefix = `arn:aws(?:-[a-z-]+)?:`
+
 // Compiled regex patterns for known AccessDenied error formats.
 // Ordered from most specific to least specific.
 var (
 	// Format I: Enriched with SCP ARN
 	// "...with an explicit deny in a service control policy arn:aws:organizations::111:policy/o-xxx/p-yyy"
 	reEnrichedWithPolicyARN = regexp.MustCompile(
-		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy) (?P<policy_arn>arn:aws:[^\s]+)`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy) (?P<policy_arn>` + arnPrefix + `[^\s]+)`,
 	)
 
 	// Format B: Enriched with policy type (no ARN)
 	// "...with an explicit deny in a service control policy"
 	reEnrichedDeny = regexp.MustCompile(
-		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy)`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy)`,
 	)
 
 	// Format C: Enriched with reason
 	// "...because no identity-based policy allows the s3:GetObject action"
 	reEnrichedReason = regexp.MustCompile(
-		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+) because (?P<reason>.+)$`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+) because (?P<reason>.+)$`,
 	)
 
 	// Format A: Classic
 	// "User: arn:aws:iam::123:user/dev is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key"
 	reClassic = regexp.MustCompile(
-		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+)`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+)`,
 	)
 
 	// Format D: EC2 Encoded
@@ -52,8 +55,8 @@ var (
 		`no (?P<policy_type>identity-based policy|resource-based policy) allows the (?P<action>[^\s]+) action`,
 	)
 
-	// Principal-only extraction for partial matches
-	rePrincipal = regexp.MustCompile(`arn:aws:(?:iam|sts)::[0-9]+:(?:user|role|assumed-role|federated-user)/[^\s"']+`)
+	// Principal-only extraction for partial matches (supports all partitions)
+	rePrincipal = regexp.MustCompile(`arn:aws(?:-[a-z-]+)?:(?:iam|sts)::[0-9]+:(?:user|role|assumed-role|federated-user)/[^\s"']+`)
 	// Tighter pattern: service must be 2-30 lowercase chars, action must be PascalCase and 3+ chars
 	reAction = regexp.MustCompile(`[a-z]{2,30}:[A-Z][a-zA-Z]{2,}`)
 )
@@ -90,55 +93,55 @@ var operationToAction = map[string]string{
 	"PutObjectAcl":       "s3:PutObjectAcl",
 	"GetBucketVersioning": "s3:GetBucketVersioning",
 	// Lambda
-	"Invoke":          "lambda:InvokeFunction",
-	"CreateFunction":  "lambda:CreateFunction",
-	"DeleteFunction":  "lambda:DeleteFunction",
-	"GetFunction":     "lambda:GetFunction",
+	"Invoke":             "lambda:InvokeFunction",
+	"CreateFunction":     "lambda:CreateFunction",
+	"DeleteFunction":     "lambda:DeleteFunction",
+	"GetFunction":        "lambda:GetFunction",
 	"UpdateFunctionCode": "lambda:UpdateFunctionCode",
-	"ListFunctions":   "lambda:ListFunctions",
+	"ListFunctions":      "lambda:ListFunctions",
 	// DynamoDB
-	"GetItem":         "dynamodb:GetItem",
-	"PutItem":         "dynamodb:PutItem",
-	"DeleteItem":      "dynamodb:DeleteItem",
-	"UpdateItem":      "dynamodb:UpdateItem",
-	"Query":           "dynamodb:Query",
-	"Scan":            "dynamodb:Scan",
-	"CreateTable":     "dynamodb:CreateTable",
-	"DeleteTable":     "dynamodb:DeleteTable",
-	"DescribeTable":   "dynamodb:DescribeTable",
-	"ListTables":      "dynamodb:ListTables",
+	"GetItem":       "dynamodb:GetItem",
+	"PutItem":       "dynamodb:PutItem",
+	"DeleteItem":    "dynamodb:DeleteItem",
+	"UpdateItem":    "dynamodb:UpdateItem",
+	"Query":         "dynamodb:Query",
+	"Scan":          "dynamodb:Scan",
+	"CreateTable":   "dynamodb:CreateTable",
+	"DeleteTable":   "dynamodb:DeleteTable",
+	"DescribeTable": "dynamodb:DescribeTable",
+	"ListTables":    "dynamodb:ListTables",
 	// STS
-	"AssumeRole":         "sts:AssumeRole",
-	"AssumeRoleWithSAML": "sts:AssumeRoleWithSAML",
+	"AssumeRole":                "sts:AssumeRole",
+	"AssumeRoleWithSAML":        "sts:AssumeRoleWithSAML",
 	"AssumeRoleWithWebIdentity": "sts:AssumeRoleWithWebIdentity",
-	"GetCallerIdentity":  "sts:GetCallerIdentity",
-	"GetSessionToken":    "sts:GetSessionToken",
+	"GetCallerIdentity":         "sts:GetCallerIdentity",
+	"GetSessionToken":           "sts:GetSessionToken",
 	// EC2
-	"RunInstances":       "ec2:RunInstances",
-	"DescribeInstances":  "ec2:DescribeInstances",
-	"StartInstances":     "ec2:StartInstances",
-	"StopInstances":      "ec2:StopInstances",
-	"TerminateInstances": "ec2:TerminateInstances",
-	"CreateSecurityGroup": "ec2:CreateSecurityGroup",
-	"AuthorizeSecurityGroupIngress": "ec2:AuthorizeSecurityGroupIngress",
+	"RunInstances":                      "ec2:RunInstances",
+	"DescribeInstances":                 "ec2:DescribeInstances",
+	"StartInstances":                    "ec2:StartInstances",
+	"StopInstances":                     "ec2:StopInstances",
+	"TerminateInstances":                "ec2:TerminateInstances",
+	"CreateSecurityGroup":               "ec2:CreateSecurityGroup",
+	"AuthorizeSecurityGroupIngress":     "ec2:AuthorizeSecurityGroupIngress",
 	// IAM
-	"CreateRole":    "iam:CreateRole",
-	"DeleteRole":    "iam:DeleteRole",
-	"GetRole":       "iam:GetRole",
-	"ListRoles":     "iam:ListRoles",
+	"CreateRole":       "iam:CreateRole",
+	"DeleteRole":       "iam:DeleteRole",
+	"GetRole":          "iam:GetRole",
+	"ListRoles":        "iam:ListRoles",
 	"AttachRolePolicy": "iam:AttachRolePolicy",
 	"DetachRolePolicy": "iam:DetachRolePolicy",
-	"CreateUser":    "iam:CreateUser",
-	"DeleteUser":    "iam:DeleteUser",
-	"ListUsers":     "iam:ListUsers",
-	"GetUser":       "iam:GetUser",
+	"CreateUser":       "iam:CreateUser",
+	"DeleteUser":       "iam:DeleteUser",
+	"ListUsers":        "iam:ListUsers",
+	"GetUser":          "iam:GetUser",
 	// SQS
-	"SendMessage":     "sqs:SendMessage",
-	"ReceiveMessage":  "sqs:ReceiveMessage",
-	"DeleteMessage":   "sqs:DeleteMessage",
-	"CreateQueue":     "sqs:CreateQueue",
-	"DeleteQueue":     "sqs:DeleteQueue",
-	"GetQueueUrl":     "sqs:GetQueueUrl",
+	"SendMessage":    "sqs:SendMessage",
+	"ReceiveMessage": "sqs:ReceiveMessage",
+	"DeleteMessage":  "sqs:DeleteMessage",
+	"CreateQueue":    "sqs:CreateQueue",
+	"DeleteQueue":    "sqs:DeleteQueue",
+	"GetQueueUrl":    "sqs:GetQueueUrl",
 	// SNS
 	"Publish":           "sns:Publish",
 	"Subscribe":         "sns:Subscribe",
@@ -146,23 +149,23 @@ var operationToAction = map[string]string{
 	"DeleteTopic":       "sns:DeleteTopic",
 	"ListSubscriptions": "sns:ListSubscriptions",
 	// KMS
-	"Decrypt":       "kms:Decrypt",
-	"Encrypt":       "kms:Encrypt",
+	"Decrypt":         "kms:Decrypt",
+	"Encrypt":         "kms:Encrypt",
 	"GenerateDataKey": "kms:GenerateDataKey",
-	"CreateKey":     "kms:CreateKey",
-	"DescribeKey":   "kms:DescribeKey",
-	"ListKeys":      "kms:ListKeys",
+	"CreateKey":       "kms:CreateKey",
+	"DescribeKey":     "kms:DescribeKey",
+	"ListKeys":        "kms:ListKeys",
 	// Secrets Manager
-	"GetSecretValue":    "secretsmanager:GetSecretValue",
-	"CreateSecret":      "secretsmanager:CreateSecret",
-	"DeleteSecret":      "secretsmanager:DeleteSecret",
-	"ListSecrets":       "secretsmanager:ListSecrets",
-	"PutSecretValue":    "secretsmanager:PutSecretValue",
+	"GetSecretValue": "secretsmanager:GetSecretValue",
+	"CreateSecret":   "secretsmanager:CreateSecret",
+	"DeleteSecret":   "secretsmanager:DeleteSecret",
+	"ListSecrets":    "secretsmanager:ListSecrets",
+	"PutSecretValue": "secretsmanager:PutSecretValue",
 	// CloudFormation
-	"CreateStack":  "cloudformation:CreateStack",
-	"DeleteStack":  "cloudformation:DeleteStack",
+	"CreateStack":    "cloudformation:CreateStack",
+	"DeleteStack":    "cloudformation:DeleteStack",
 	"DescribeStacks": "cloudformation:DescribeStacks",
-	"UpdateStack":  "cloudformation:UpdateStack",
+	"UpdateStack":    "cloudformation:UpdateStack",
 	// ECR
 	"GetAuthorizationToken": "ecr:GetAuthorizationToken",
 	"BatchGetImage":         "ecr:BatchGetImage",
@@ -173,26 +176,26 @@ var operationToAction = map[string]string{
 	"DescribeTasks": "ecs:DescribeTasks",
 	"ListTasks":     "ecs:ListTasks",
 	// SSM
-	"GetParameter":     "ssm:GetParameter",
-	"GetParameters":    "ssm:GetParameters",
-	"PutParameter":     "ssm:PutParameter",
+	"GetParameter":       "ssm:GetParameter",
+	"GetParameters":      "ssm:GetParameters",
+	"PutParameter":       "ssm:PutParameter",
 	"DescribeParameters": "ssm:DescribeParameters",
 	// Organizations
-	"ListAccounts":             "organizations:ListAccounts",
-	"DescribeOrganization":     "organizations:DescribeOrganization",
-	"ListPolicies":             "organizations:ListPolicies",
-	"DescribeAccount":          "organizations:DescribeAccount",
-	"ListOrganizationalUnitsForParent": "organizations:ListOrganizationalUnitsForParent",
+	"ListAccounts":                      "organizations:ListAccounts",
+	"DescribeOrganization":              "organizations:DescribeOrganization",
+	"ListPolicies":                      "organizations:ListPolicies",
+	"DescribeAccount":                   "organizations:DescribeAccount",
+	"ListOrganizationalUnitsForParent":  "organizations:ListOrganizationalUnitsForParent",
 	// CloudWatch Logs
 	"CreateLogGroup":    "logs:CreateLogGroup",
 	"PutLogEvents":      "logs:PutLogEvents",
 	"DescribeLogGroups": "logs:DescribeLogGroups",
 	"GetLogEvents":      "logs:GetLogEvents",
 	// Glue
-	"GetDatabase":  "glue:GetDatabase",
-	"GetTable":     "glue:GetTable",
-	"GetTables":    "glue:GetTables",
-	"StartJobRun":  "glue:StartJobRun",
+	"GetDatabase": "glue:GetDatabase",
+	"GetTable":    "glue:GetTable",
+	"GetTables":   "glue:GetTables",
+	"StartJobRun": "glue:StartJobRun",
 	// Athena
 	"StartQueryExecution": "athena:StartQueryExecution",
 	"GetQueryExecution":   "athena:GetQueryExecution",

@@ -3,8 +3,8 @@ package internal
 import "regexp"
 
 var (
-	// Matches AWS access key IDs (always start with AKIA)
-	reAccessKeyID = regexp.MustCompile(`AKIA[0-9A-Z]{16}`)
+	// Matches AWS access key IDs: AKIA (long-term) and ASIA (temporary/STS)
+	reAccessKeyID = regexp.MustCompile(`A[KS]IA[0-9A-Z]{16}`)
 
 	// Matches AWS secret access keys in key=value context
 	reSecretAccessKey = regexp.MustCompile(`(?i)aws_secret_access_key\s*[=:]\s*[A-Za-z0-9/+=]{40}`)
