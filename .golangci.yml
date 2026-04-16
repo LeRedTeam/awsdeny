@@ -3,8 +3,8 @@ version: "2"
 linters:
   default: standard
   disable:
-    - errcheck  # too noisy for fmt.Fprint* to io.Writer in CLI output code
+    - errcheck
 
-issues:
+run:
   exclude-dirs:
     - action
