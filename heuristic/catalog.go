@@ -46,10 +46,7 @@ var catalog = []Heuristic{
 			// - error or reason mentions "region"
 			// - CloudTrail provides region context showing a non-standard region
 			lower := strings.ToLower(p.Reason + p.RawMessage)
-			if strings.Contains(lower, "region") {
-				return true
-			}
-			return false
+			return strings.Contains(lower, "region")
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
 			return internal.Explanation{
