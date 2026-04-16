@@ -3,6 +3,7 @@ package enrich
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -22,8 +23,12 @@ func (c *Client) Simulate(ctx context.Context, principal, action, resource strin
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	// SimulatePrincipalPolicy requires an IAM ARN, not an STS assumed-role ARN.
+	// Convert arn:aws:sts::ACCT:assumed-role/ROLE/SESSION -> arn:aws:iam::ACCT:role/ROLE
+	simulationArn := normalizeToIAMArn(principal)
+
 	input := &iam.SimulatePrincipalPolicyInput{
-		PolicySourceArn: aws.String(principal),
+		PolicySourceArn: aws.String(simulationArn),
 		ActionNames:     []string{action},
 	}
 
@@ -62,4 +67,27 @@ func (c *Client) Simulate(ctx context.Context, principal, action, resource strin
 	result.MissingContext = eval.MissingContextValues
 
 	return result, nil
+}
+
+// normalizeToIAMArn converts STS assumed-role ARNs to IAM role ARNs.
+// arn:aws:sts::123:assumed-role/MyRole/session -> arn:aws:iam::123:role/MyRole
+// Other ARN formats are returned as-is.
+func normalizeToIAMArn(arn string) string {
+	if !strings.Contains(arn, ":assumed-role/") {
+		return arn
+	}
+	parts := strings.Split(arn, ":")
+	if len(parts) < 6 {
+		return arn
+	}
+	// parts[2] is "sts", parts[5] is "assumed-role/ROLE/SESSION"
+	resource := parts[5]
+	segments := strings.SplitN(resource, "/", 3)
+	if len(segments) < 2 || segments[0] != "assumed-role" {
+		return arn
+	}
+	roleName := segments[1]
+	parts[2] = "iam"
+	parts[5] = "role/" + roleName
+	return strings.Join(parts, ":")
 }

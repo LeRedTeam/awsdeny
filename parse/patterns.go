@@ -177,4 +177,27 @@ var operationToAction = map[string]string{
 	"GetParameters":    "ssm:GetParameters",
 	"PutParameter":     "ssm:PutParameter",
 	"DescribeParameters": "ssm:DescribeParameters",
+	// Organizations
+	"ListAccounts":             "organizations:ListAccounts",
+	"DescribeOrganization":     "organizations:DescribeOrganization",
+	"ListPolicies":             "organizations:ListPolicies",
+	"DescribeAccount":          "organizations:DescribeAccount",
+	"ListOrganizationalUnitsForParent": "organizations:ListOrganizationalUnitsForParent",
+	// CloudWatch Logs
+	"CreateLogGroup":    "logs:CreateLogGroup",
+	"PutLogEvents":      "logs:PutLogEvents",
+	"DescribeLogGroups": "logs:DescribeLogGroups",
+	"GetLogEvents":      "logs:GetLogEvents",
+	// Glue
+	"GetDatabase":  "glue:GetDatabase",
+	"GetTable":     "glue:GetTable",
+	"GetTables":    "glue:GetTables",
+	"StartJobRun":  "glue:StartJobRun",
+	// Athena
+	"StartQueryExecution": "athena:StartQueryExecution",
+	"GetQueryExecution":   "athena:GetQueryExecution",
+	"GetQueryResults":     "athena:GetQueryResults",
+	// Redshift
+	"GetClusterCredentials": "redshift:GetClusterCredentials",
+	"DescribeClusters":      "redshift:DescribeClusters",
 }
