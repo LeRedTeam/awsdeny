@@ -78,6 +78,14 @@ func AnalyzeWithEnrichment(parsed internal.ParsedError, enrichment *internal.Enr
 	expl.Confidence = conf
 	expl.ConfidenceReason = confReason
 
+	// Refine explanation with policy analysis results
+	if enrichment.PolicyDenyType != "" && enrichment.PolicyDenyType != "unknown" {
+		expl.DenyType = enrichment.PolicyDenyType
+		if enrichment.PolicyDenyReason != "" {
+			expl.Reason = enrichment.PolicyDenyReason
+		}
+	}
+
 	// Update level based on enrichment
 	if enrichment.SimulationRan {
 		expl.Level = 3

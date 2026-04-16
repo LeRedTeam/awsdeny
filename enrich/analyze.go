@@ -2,6 +2,7 @@ package enrich
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 
 	"github.com/leredteam/awsdeny/internal"
@@ -176,10 +177,22 @@ func AnalyzeStatements(statements []internal.PolicyStatement, action, resource s
 }
 
 func formatConditions(conditions map[string]map[string][]string) string {
+	// Sort operators for deterministic output
+	ops := make([]string, 0, len(conditions))
+	for op := range conditions {
+		ops = append(ops, op)
+	}
+	sort.Strings(ops)
+
 	var parts []string
-	for op, keys := range conditions {
-		for key, values := range keys {
-			parts = append(parts, op+"("+key+" = "+strings.Join(values, ", ")+")")
+	for _, op := range ops {
+		keys := make([]string, 0, len(conditions[op]))
+		for key := range conditions[op] {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			parts = append(parts, op+"("+key+" = "+strings.Join(conditions[op][key], ", ")+")")
 		}
 	}
 	return strings.Join(parts, "; ")

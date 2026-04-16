@@ -140,6 +140,15 @@ func TestParseCloudTrailJSON_InferResource(t *testing.T) {
 	assertEqual(t, "arn:aws:s3:::my-bucket/path/file.txt", results[0].Resource)
 }
 
+func TestParseCloudTrailJSON_ArbitraryJSON(t *testing.T) {
+	data := []byte(`{"foo": "bar", "baz": 123}`)
+
+	_, err := ParseCloudTrailJSON(data)
+	if err == nil {
+		t.Error("expected error for non-CloudTrail JSON")
+	}
+}
+
 func TestParseCloudTrailJSON_InvalidJSON(t *testing.T) {
 	data := []byte(`not json`)
 

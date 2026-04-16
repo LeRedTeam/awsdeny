@@ -104,6 +104,12 @@ func ParseCloudTrailJSON(data []byte) ([]internal.ParsedError, error) {
 	if err := json.Unmarshal(data, &event); err != nil {
 		return nil, fmt.Errorf("invalid CloudTrail JSON: %w", err)
 	}
+
+	// Validate it's actually a CloudTrail event, not arbitrary JSON
+	if event.EventSource == "" && event.ErrorCode == "" && event.EventName == "" {
+		return nil, fmt.Errorf("invalid CloudTrail event: missing eventSource, errorCode, and eventName")
+	}
+
 	return parseCloudTrailEvents([]cloudTrailEvent{event}), nil
 }
 

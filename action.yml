@@ -40,5 +40,3 @@ outputs:
 runs:
   using: 'docker'
   image: 'action/Dockerfile'
-  args:
-    - explain

@@ -120,7 +120,8 @@ func runExplain(cmd *cobra.Command, args []string) error {
 
 func getErrorMessage(args []string) (string, error) {
 	if useStdin {
-		data, err := io.ReadAll(os.Stdin)
+		const maxStdinBytes = 1 << 20 // 1MB
+		data, err := io.ReadAll(io.LimitReader(os.Stdin, maxStdinBytes))
 		if err != nil {
 			return "", fmt.Errorf("reading stdin: %w", err)
 		}
@@ -188,7 +189,7 @@ func handleCloudTrail(ctx context.Context, path string, format string) error {
 	}
 
 	if len(parsedErrors) == 0 {
-		fmt.Println("No AccessDenied events found in CloudTrail data.")
+		fmt.Fprintln(os.Stderr, "No AccessDenied events found in CloudTrail data.")
 		return nil
 	}
 

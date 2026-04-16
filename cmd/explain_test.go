@@ -37,8 +37,7 @@ func TestRunExplain_WithPositionalArgs(t *testing.T) {
 	// Will parse what it can from the joined text
 	if err != nil {
 		// An ExitError for unparseable format is acceptable
-		var exitErr *internal.ExitError
-		if !isExitError(err, exitErr) {
+		if !isExitError(err) {
 			t.Fatalf("unexpected error type: %v", err)
 		}
 	}
@@ -127,7 +126,7 @@ func TestWriteOutput_GitHub(t *testing.T) {
 	}
 }
 
-func isExitError(err error, _ *internal.ExitError) bool {
+func isExitError(err error) bool {
 	_, ok := err.(*internal.ExitError)
 	return ok
 }

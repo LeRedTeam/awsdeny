@@ -62,6 +62,8 @@ type EnrichmentResult struct {
 	PolicyFetched         bool
 	PolicyDocument        string
 	MatchingStatements    []PolicyStatement
+	PolicyDenyType        string // "explicit", "implicit", or "" — from policy analysis
+	PolicyDenyReason      string // human-readable reason from policy analysis
 	SimulationRan         bool
 	SimulationResult      string // "allowed", "implicitDeny", "explicitDeny"
 	SimulationConfirms    bool

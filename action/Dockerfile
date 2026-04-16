@@ -6,6 +6,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /awsdeny .
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates curl jq
 COPY --from=builder /awsdeny /usr/local/bin/awsdeny
-ENTRYPOINT ["/usr/local/bin/awsdeny"]
+COPY action/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

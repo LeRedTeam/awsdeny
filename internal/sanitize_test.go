@@ -62,3 +62,19 @@ func TestSanitize_MultipleAccessKeys(t *testing.T) {
 		t.Error("all access key IDs should be redacted")
 	}
 }
+
+func TestSanitize_SecretAccessKey(t *testing.T) {
+	input := "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	result := Sanitize(input)
+	if strings.Contains(result, "wJalrXUtnFEMI") {
+		t.Error("secret access key should be redacted")
+	}
+}
+
+func TestSanitize_SecretAccessKeyLowercase(t *testing.T) {
+	input := "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	result := Sanitize(input)
+	if strings.Contains(result, "wJalrXUtnFEMI") {
+		t.Error("secret access key (lowercase) should be redacted")
+	}
+}

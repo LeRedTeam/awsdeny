@@ -26,10 +26,8 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 
 			if len(result.MatchingStatements) > 0 {
 				denyType, reason := AnalyzeStatements(result.MatchingStatements, parsed.Action, parsed.Resource)
-				if denyType != "unknown" {
-					result.Warnings = append(result.Warnings, "Policy analysis: "+reason)
-				}
-				_ = denyType // Used by the caller through the statements
+				result.PolicyDenyType = denyType
+				result.PolicyDenyReason = reason
 			}
 		}
 	}
