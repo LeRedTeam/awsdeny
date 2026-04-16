@@ -1,0 +1,27 @@
+{
+    "Records": [
+        {
+            "eventSource": "s3.amazonaws.com",
+            "eventName": "GetObject",
+            "errorCode": "AccessDenied",
+            "errorMessage": "Access Denied",
+            "awsRegion": "us-east-1",
+            "userIdentity": {"arn": "arn:aws:iam::123:user/dev", "accountId": "123"},
+            "requestParameters": {"bucketName": "bucket", "key": "file.txt"}
+        },
+        {
+            "eventSource": "lambda.amazonaws.com",
+            "eventName": "Invoke",
+            "errorCode": "AccessDeniedException",
+            "errorMessage": "User is not authorized",
+            "awsRegion": "us-west-2",
+            "userIdentity": {"arn": "arn:aws:iam::123:role/LambdaCaller", "accountId": "123"}
+        },
+        {
+            "eventSource": "s3.amazonaws.com",
+            "eventName": "PutObject",
+            "awsRegion": "us-east-1",
+            "userIdentity": {"arn": "arn:aws:iam::123:user/dev", "accountId": "123"}
+        }
+    ]
+}

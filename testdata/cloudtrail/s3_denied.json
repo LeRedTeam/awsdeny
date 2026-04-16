@@ -1,0 +1,37 @@
+{
+    "eventVersion": "1.08",
+    "userIdentity": {
+        "type": "AssumedRole",
+        "arn": "arn:aws:sts::123456789012:assumed-role/MyRole/session",
+        "accountId": "123456789012",
+        "sessionContext": {
+            "attributes": {"mfaAuthenticated": "false"},
+            "sessionIssuer": {
+                "type": "Role",
+                "arn": "arn:aws:iam::123456789012:role/MyRole",
+                "accountId": "123456789012",
+                "userName": "MyRole"
+            }
+        }
+    },
+    "eventTime": "2024-01-15T10:05:00Z",
+    "eventSource": "s3.amazonaws.com",
+    "eventName": "GetObject",
+    "awsRegion": "us-east-1",
+    "sourceIPAddress": "10.0.1.50",
+    "userAgent": "aws-cli/2.13.0",
+    "errorCode": "AccessDenied",
+    "errorMessage": "Access Denied",
+    "requestParameters": {
+        "bucketName": "my-bucket",
+        "key": "data.csv"
+    },
+    "resources": [
+        {
+            "accountId": "123456789012",
+            "type": "AWS::S3::Object",
+            "ARN": "arn:aws:s3:::my-bucket/data.csv"
+        }
+    ],
+    "vpcEndpointId": "vpce-abc123"
+}

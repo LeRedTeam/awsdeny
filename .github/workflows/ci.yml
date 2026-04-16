@@ -32,12 +32,8 @@ jobs:
       - name: Build
         run: go build -o awsdeny .
 
-      - name: Smoke test
-        run: |
-          ./awsdeny version
-          ./awsdeny explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key because no identity-based policy allows the s3:GetObject action"
-          echo "Access Denied" | ./awsdeny explain --stdin
-          ./awsdeny explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key" --format json
+      - name: Functional tests
+        run: bash test_functional.sh
 
   lint:
     name: Lint
