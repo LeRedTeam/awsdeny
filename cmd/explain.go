@@ -34,6 +34,7 @@ var explainCmd = &cobra.Command{
 
 Provide the error via --error flag, --stdin, or --cloudtrail for CloudTrail events.
 Use --enrich to enable AWS API calls for deeper analysis (requires credentials).`,
+	Args: cobra.ArbitraryArgs,
 	RunE: runExplain,
 }
 
@@ -60,22 +61,31 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	// Check license for Pro features
 	licenseKey := os.Getenv("AWSDENY_LICENSE_KEY")
 	if doEnrich {
-		if err := license.CheckProFeature(licenseKey, "--enrich"); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: %s\n", err)
+		result := license.CheckProFeature(licenseKey, "--enrich")
+		if result.Err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", result.Err)
 			fmt.Fprintf(os.Stderr, "Falling back to Level 1 analysis (parse + heuristic only)\n\n")
 			doEnrich = false
+		} else if result.Warning != "" {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", result.Warning)
 		}
 	}
 	if cloudtrailPath != "" {
-		if err := license.CheckProFeature(licenseKey, "--cloudtrail"); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-			os.Exit(int(internal.ExitLicenseError))
+		result := license.CheckProFeature(licenseKey, "--cloudtrail")
+		if result.Err != nil {
+			return internal.NewExitError(internal.ExitLicenseError, result.Err.Error())
+		}
+		if result.Warning != "" {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", result.Warning)
 		}
 	}
 	if format == "sarif" {
-		if err := license.CheckProFeature(licenseKey, "SARIF output"); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-			os.Exit(int(internal.ExitLicenseError))
+		result := license.CheckProFeature(licenseKey, "SARIF output")
+		if result.Err != nil {
+			return internal.NewExitError(internal.ExitLicenseError, result.Err.Error())
+		}
+		if result.Warning != "" {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", result.Warning)
 		}
 	}
 
@@ -85,7 +95,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get error message
-	raw, err := getErrorMessage()
+	raw, err := getErrorMessage(args)
 	if err != nil {
 		return err
 	}
@@ -96,21 +106,19 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	// Parse the error
 	parsed := parse.Parse(raw)
 	if parsed.Format == "unknown" && parsed.Action == "" && parsed.Principal == "" {
-		fmt.Fprintf(os.Stderr, "Could not parse this error format.\n")
-		fmt.Fprintf(os.Stderr, "If this is a valid AccessDenied error, please file an issue:\n")
-		fmt.Fprintf(os.Stderr, "  https://github.com/leredteam/awsdeny/issues\n")
-		os.Exit(int(internal.ExitParseError))
+		return internal.NewExitError(internal.ExitParseError,
+			"Could not parse this error format.\nIf this is a valid AccessDenied error, please file an issue:\n  https://github.com/leredteam/awsdeny/issues")
 	}
 
 	// Run analysis
-	result := analyze(cmd.Context(), parsed)
+	result := analyzeError(cmd.Context(), parsed)
 
 	// Output
 	writeOutput(os.Stdout, result, format)
 	return nil
 }
 
-func getErrorMessage() (string, error) {
+func getErrorMessage(args []string) (string, error) {
 	if useStdin {
 		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
@@ -127,16 +135,15 @@ func getErrorMessage() (string, error) {
 		return errorMsg, nil
 	}
 
-	// Check if there are remaining args (user might pass error without flag)
-	if len(os.Args) > 2 {
-		// Join everything after "explain" as the error message
-		return strings.Join(os.Args[2:], " "), nil
+	// Use positional args from cobra if provided
+	if len(args) > 0 {
+		return strings.Join(args, " "), nil
 	}
 
 	return "", fmt.Errorf("provide an error message with --error, --stdin, or --cloudtrail")
 }
 
-func analyze(ctx context.Context, parsed internal.ParsedError) internal.AnalysisResult {
+func analyzeError(ctx context.Context, parsed internal.ParsedError) internal.AnalysisResult {
 	// Level 1: Heuristic analysis
 	explanation := heuristic.Analyze(parsed)
 
@@ -186,7 +193,7 @@ func handleCloudTrail(ctx context.Context, path string, format string) error {
 	}
 
 	for _, parsed := range parsedErrors {
-		result := analyze(ctx, parsed)
+		result := analyzeError(ctx, parsed)
 		writeOutput(os.Stdout, result, format)
 	}
 

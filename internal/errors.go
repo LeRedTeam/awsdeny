@@ -14,6 +14,21 @@ const (
 	ExitEnrichmentError  ExitCode = 5
 )
 
+// ExitError wraps an error with a specific exit code for cobra to handle.
+type ExitError struct {
+	Code ExitCode
+	Msg  string
+}
+
+func (e *ExitError) Error() string {
+	return e.Msg
+}
+
+// NewExitError creates an ExitError.
+func NewExitError(code ExitCode, msg string) *ExitError {
+	return &ExitError{Code: code, Msg: msg}
+}
+
 // ParseError indicates the error message could not be parsed.
 type ParseError struct {
 	Message string

@@ -72,11 +72,12 @@ type EnrichmentResult struct {
 
 // PolicyStatement represents a single statement from an IAM policy document.
 type PolicyStatement struct {
-	Sid        string
-	Effect     string
-	Actions    []string
-	Resources  []string
-	Conditions map[string]map[string][]string
+	Sid          string
+	Effect       string
+	Actions      []string
+	NotActions   []string // NotAction: matches everything EXCEPT these
+	Resources    []string
+	Conditions   map[string]map[string][]string
 }
 
 // AnalysisResult is the complete result combining all analysis levels.

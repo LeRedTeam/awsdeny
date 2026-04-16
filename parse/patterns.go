@@ -54,7 +54,8 @@ var (
 
 	// Principal-only extraction for partial matches
 	rePrincipal = regexp.MustCompile(`arn:aws:(?:iam|sts)::[0-9]+:(?:user|role|assumed-role|federated-user)/[^\s"']+`)
-	reAction    = regexp.MustCompile(`[a-z0-9]+:[A-Z][a-zA-Z]+`)
+	// Tighter pattern: service must be 2-30 lowercase chars, action must be PascalCase and 3+ chars
+	reAction = regexp.MustCompile(`[a-z]{2,30}:[A-Z][a-zA-Z]{2,}`)
 	reARN       = regexp.MustCompile(`arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]*:[^\s"']+`)
 )
 

@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/leredteam/awsdeny/internal"
 )
 
 // version is set at build time via ldflags.
@@ -29,6 +32,11 @@ Examples:
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		var exitErr *internal.ExitError
+		if errors.As(err, &exitErr) {
+			fmt.Fprintln(os.Stderr, exitErr.Msg)
+			os.Exit(int(exitErr.Code))
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

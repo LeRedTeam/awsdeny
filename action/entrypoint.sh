@@ -6,60 +6,55 @@ if [ -n "$INPUT_LICENSE_KEY" ]; then
     export AWSDENY_LICENSE_KEY="$INPUT_LICENSE_KEY"
 fi
 
-# Build args
-ARGS="explain"
+# Build command arguments as discrete values (no eval)
+set -- explain
 
 if [ -n "$INPUT_ERROR" ]; then
-    ARGS="$ARGS --error \"$INPUT_ERROR\""
+    set -- "$@" --error "$INPUT_ERROR"
 fi
 
 if [ -n "$INPUT_CLOUDTRAIL" ]; then
-    ARGS="$ARGS --cloudtrail $INPUT_CLOUDTRAIL"
+    set -- "$@" --cloudtrail "$INPUT_CLOUDTRAIL"
 fi
 
 if [ "$INPUT_ENRICH" = "true" ]; then
-    ARGS="$ARGS --enrich"
+    set -- "$@" --enrich
 fi
 
-if [ -n "$INPUT_FORMAT" ]; then
-    ARGS="$ARGS --format $INPUT_FORMAT"
-fi
+# Run once with JSON output to capture structured data
+JSON_OUTPUT=$(awsdeny "$@" --format json 2>&1) || true
 
-# Run awsdeny and capture output
-OUTPUT=$(eval awsdeny $ARGS 2>&1) || true
+# Display human-readable output
+awsdeny "$@" --format human 2>&1 || true
 
-echo "$OUTPUT"
-
-# Write to job summary
+# Write GitHub-flavored markdown to job summary
 if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-    # Get github-formatted output for summary
-    SUMMARY=$(eval awsdeny $ARGS --format github 2>&1) || true
-    echo "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+    awsdeny "$@" --format github >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
 fi
 
 # Post PR comment if requested
 if [ "$INPUT_COMMENT_ON_PR" = "true" ] && [ -n "$GITHUB_TOKEN" ]; then
     PR_NUMBER=$(echo "$GITHUB_REF" | grep -oP '(?<=pull/)\d+' || true)
     if [ -n "$PR_NUMBER" ]; then
-        COMMENT=$(eval awsdeny $ARGS --format github 2>&1) || true
-        ESCAPED=$(echo "$COMMENT" | jq -Rs .)
-        curl -s -X POST \
+        COMMENT=$(awsdeny "$@" --format github 2>&1) || true
+        ESCAPED=$(printf '%s' "$COMMENT" | jq -Rs .)
+        curl -sf \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            -d "{\"body\": $ESCAPED}"
+            -d "{\"body\": $ESCAPED}" \
+            >/dev/null 2>&1 || echo "Warning: Failed to post PR comment"
     fi
 fi
 
-# Set outputs
-JSON_OUTPUT=$(eval awsdeny $ARGS --format json 2>&1) || true
+# Set outputs from the JSON we already captured
 echo "explanation<<EOF" >> "$GITHUB_OUTPUT"
 echo "$JSON_OUTPUT" >> "$GITHUB_OUTPUT"
 echo "EOF" >> "$GITHUB_OUTPUT"
 
-CONFIDENCE=$(echo "$JSON_OUTPUT" | jq -r '.confidence // empty' 2>/dev/null || true)
-ACTION_NAME=$(echo "$JSON_OUTPUT" | jq -r '.action // empty' 2>/dev/null || true)
-RESOURCE=$(echo "$JSON_OUTPUT" | jq -r '.resource // empty' 2>/dev/null || true)
+CONFIDENCE=$(printf '%s' "$JSON_OUTPUT" | jq -r '.confidence // empty' 2>/dev/null || true)
+ACTION_NAME=$(printf '%s' "$JSON_OUTPUT" | jq -r '.action // empty' 2>/dev/null || true)
+RESOURCE=$(printf '%s' "$JSON_OUTPUT" | jq -r '.resource // empty' 2>/dev/null || true)
 
 echo "confidence=$CONFIDENCE" >> "$GITHUB_OUTPUT"
 echo "action=$ACTION_NAME" >> "$GITHUB_OUTPUT"

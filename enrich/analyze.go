@@ -38,10 +38,11 @@ func parsePolicyDocument(document string) ([]internal.PolicyStatement, error) {
 		}
 
 		ps := internal.PolicyStatement{
-			Sid:       stmt.Sid,
-			Effect:    stmt.Effect,
-			Actions:   toStringSlice(stmt.Action),
-			Resources: toStringSlice(stmt.Resource),
+			Sid:        stmt.Sid,
+			Effect:     stmt.Effect,
+			Actions:    toStringSlice(stmt.Action),
+			NotActions: toStringSlice(stmt.NotAction),
+			Resources:  toStringSlice(stmt.Resource),
 		}
 
 		if stmt.Condition != nil {
@@ -94,12 +95,27 @@ func FindMatchingStatements(statements []internal.PolicyStatement, action, resou
 
 func matchesStatement(stmt internal.PolicyStatement, action, resource string) bool {
 	actionMatch := false
-	for _, a := range stmt.Actions {
-		if matchesPattern(a, action) {
-			actionMatch = true
-			break
+
+	if len(stmt.Actions) > 0 {
+		// Action: match if any pattern matches
+		for _, a := range stmt.Actions {
+			if matchesPattern(a, action) {
+				actionMatch = true
+				break
+			}
 		}
+	} else if len(stmt.NotActions) > 0 {
+		// NotAction: match if the action is NOT in the exclusion list
+		excluded := false
+		for _, a := range stmt.NotActions {
+			if matchesPattern(a, action) {
+				excluded = true
+				break
+			}
+		}
+		actionMatch = !excluded
 	}
+
 	if !actionMatch {
 		return false
 	}

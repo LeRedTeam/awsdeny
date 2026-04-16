@@ -17,8 +17,9 @@ type Heuristic struct {
 }
 
 type heuristicMatch struct {
-	heuristic   *Heuristic
-	explanation internal.Explanation
+	heuristic    *Heuristic
+	explanation  internal.Explanation
+	catalogIndex int // position in catalog for stable sort tiebreaking
 }
 
 // Analyze runs all heuristics against the parsed error and returns the best explanation.
@@ -32,8 +33,9 @@ func Analyze(parsed internal.ParsedError) internal.Explanation {
 			expl.HeuristicID = h.ID
 			expl.Level = 1
 			matches = append(matches, heuristicMatch{
-				heuristic:   h,
-				explanation: expl,
+				heuristic:    h,
+				explanation:  expl,
+				catalogIndex: i,
 			})
 		}
 	}
@@ -42,9 +44,12 @@ func Analyze(parsed internal.ParsedError) internal.Explanation {
 		return defaultExplanation(parsed)
 	}
 
-	// Sort by confidence boost (highest first)
+	// Sort by confidence boost (highest first), catalog order as tiebreaker (lower = more specific)
 	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].heuristic.ConfidenceBoost > matches[j].heuristic.ConfidenceBoost
+		if matches[i].heuristic.ConfidenceBoost != matches[j].heuristic.ConfidenceBoost {
+			return matches[i].heuristic.ConfidenceBoost > matches[j].heuristic.ConfidenceBoost
+		}
+		return matches[i].catalogIndex < matches[j].catalogIndex
 	})
 
 	best := matches[0]

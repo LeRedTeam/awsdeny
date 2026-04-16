@@ -64,6 +64,7 @@ func ParseCloudTrailFile(path string) ([]internal.ParsedError, error) {
 }
 
 // ParseCloudTrailDir reads all JSON files in a directory and returns parsed errors.
+// Files that fail to parse are reported via warnings on stderr.
 func ParseCloudTrailDir(dir string) ([]internal.ParsedError, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -71,15 +72,21 @@ func ParseCloudTrailDir(dir string) ([]internal.ParsedError, error) {
 	}
 
 	var results []internal.ParsedError
+	var skipped int
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
 		parsed, err := ParseCloudTrailFile(filepath.Join(dir, entry.Name()))
 		if err != nil {
-			continue // skip files that fail to parse
+			fmt.Fprintf(os.Stderr, "Warning: skipping %s: %s\n", entry.Name(), err)
+			skipped++
+			continue
 		}
 		results = append(results, parsed...)
+	}
+	if skipped > 0 {
+		fmt.Fprintf(os.Stderr, "Warning: %d file(s) skipped due to parse errors\n", skipped)
 	}
 	return results, nil
 }

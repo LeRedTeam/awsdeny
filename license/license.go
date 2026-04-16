@@ -135,27 +135,39 @@ func (l *License) IsPro() bool {
 	return l.Tier == TierPro || l.Tier == TierCommercial
 }
 
+// ProFeatureResult holds the result of a Pro feature license check.
+type ProFeatureResult struct {
+	Allowed bool
+	Warning string // Non-empty if in grace period
+	Err     error  // Non-nil if not allowed
+}
+
 // CheckProFeature validates that the license allows Pro features.
-// Returns nil if allowed, or an error explaining why not.
-func CheckProFeature(key string, feature string) error {
+func CheckProFeature(key string, feature string) ProFeatureResult {
 	if key == "" {
-		return fmt.Errorf("%s requires a Pro license. Set AWSDENY_LICENSE_KEY or get a license at https://github.com/leredteam/awsdeny", feature)
+		return ProFeatureResult{
+			Err: fmt.Errorf("%s requires a Pro license. Set AWSDENY_LICENSE_KEY or get a license at https://github.com/leredteam/awsdeny", feature),
+		}
 	}
 
 	lic, err := Validate(key)
 	if err != nil {
-		return fmt.Errorf("license validation failed: %w", err)
+		return ProFeatureResult{
+			Err: fmt.Errorf("license validation failed: %w", err),
+		}
 	}
 
 	if !lic.IsPro() {
-		return fmt.Errorf("%s requires a Pro license (current: %s)", feature, lic.Tier)
+		return ProFeatureResult{
+			Err: fmt.Errorf("%s requires a Pro license (current: %s)", feature, lic.Tier),
+		}
 	}
 
+	result := ProFeatureResult{Allowed: true}
 	if lic.InGracePeriod() {
-		fmt.Printf("Warning: License expired on %s. Grace period ends %s.\n",
+		result.Warning = fmt.Sprintf("License expired on %s. Grace period ends %s.",
 			lic.ExpiresAt.Format("2006-01-02"),
 			lic.ExpiresAt.Add(gracePeriod).Format("2006-01-02"))
 	}
-
-	return nil
+	return result
 }

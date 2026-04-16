@@ -175,11 +175,16 @@ var catalog = []Heuristic{
 		ConfidenceBoost: 0.2,
 		Match: func(p internal.ParsedError) bool {
 			lower := strings.ToLower(p.Reason + p.RawMessage)
-			hasMFA := strings.Contains(lower, "multifactorauth") ||
-				strings.Contains(lower, "mfa") ||
+			hasMFAKeyword := strings.Contains(lower, "multifactorauth") ||
 				strings.Contains(lower, "multi-factor")
+			// Session context alone is not enough — many CloudTrail events have mfa=false
+			// without MFA being relevant. Require MFA keyword in error OR both session
+			// context and a generic "mfa" mention.
+			if hasMFAKeyword {
+				return true
+			}
 			fromSession := p.SessionContext != nil && p.SessionContext["mfaAuthenticated"] == "false"
-			return hasMFA || fromSession
+			return fromSession && strings.Contains(lower, "mfa")
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
 			return internal.Explanation{
@@ -289,8 +294,8 @@ var catalog = []Heuristic{
 			if p.Action != "sts:AssumeRole" {
 				return false
 			}
-			principalAcct := extractAccount(p.Principal)
-			resourceAcct := extractAccount(p.Resource)
+			principalAcct := internal.ExtractAccountFromARN(p.Principal)
+			resourceAcct := internal.ExtractAccountFromARN(p.Resource)
 			return principalAcct != "" && resourceAcct != "" && principalAcct != resourceAcct
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
@@ -317,8 +322,8 @@ var catalog = []Heuristic{
 			if p.Action == "sts:AssumeRole" {
 				return false
 			}
-			principalAcct := extractAccount(p.Principal)
-			resourceAcct := extractAccount(p.Resource)
+			principalAcct := internal.ExtractAccountFromARN(p.Principal)
+			resourceAcct := internal.ExtractAccountFromARN(p.Resource)
 			return principalAcct != "" && resourceAcct != "" && principalAcct != resourceAcct
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
@@ -344,8 +349,8 @@ var catalog = []Heuristic{
 			if p.Action != "sts:AssumeRole" {
 				return false
 			}
-			principalAcct := extractAccount(p.Principal)
-			resourceAcct := extractAccount(p.Resource)
+			principalAcct := internal.ExtractAccountFromARN(p.Principal)
+			resourceAcct := internal.ExtractAccountFromARN(p.Resource)
 			isCrossAccount := principalAcct != "" && resourceAcct != "" && principalAcct != resourceAcct
 			// Generic error with cross-account AssumeRole hints at ExternalId
 			return isCrossAccount && p.DenyType == "" && p.PolicyType == ""
@@ -419,7 +424,13 @@ var catalog = []Heuristic{
 		Category:        "resource-policy",
 		ConfidenceBoost: 0.2,
 		Match: func(p internal.ParsedError) bool {
-			return strings.HasPrefix(p.Action, "kms:")
+			if !strings.HasPrefix(p.Action, "kms:") {
+				return false
+			}
+			// Only match when policy type is unknown or resource-based.
+			// If we know the deny came from an SCP or identity policy, don't
+			// attribute it to the KMS key policy.
+			return p.PolicyType == "" || p.PolicyType == "resource"
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
 			return internal.Explanation{
@@ -564,7 +575,7 @@ var catalog = []Heuristic{
 			if p.Resource == "" || p.Region == "" {
 				return false
 			}
-			resourceRegion := extractRegion(p.Resource)
+			resourceRegion := internal.ExtractRegionFromARN(p.Resource)
 			return resourceRegion != "" && resourceRegion != p.Region
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
@@ -678,20 +689,4 @@ func orDefault(val, def string) string {
 		return def
 	}
 	return val
-}
-
-func extractAccount(arn string) string {
-	parts := strings.Split(arn, ":")
-	if len(parts) >= 5 {
-		return parts[4]
-	}
-	return ""
-}
-
-func extractRegion(arn string) string {
-	parts := strings.Split(arn, ":")
-	if len(parts) >= 4 {
-		return parts[3]
-	}
-	return ""
 }

@@ -48,24 +48,6 @@ func inferActionFromOperation(operation string) string {
 	return ""
 }
 
-// extractAccountFromARN extracts the account ID from an ARN.
-func extractAccountFromARN(arn string) string {
-	parts := strings.Split(arn, ":")
-	if len(parts) >= 5 {
-		return parts[4]
-	}
-	return ""
-}
-
-// extractRegionFromARN extracts the region from an ARN.
-func extractRegionFromARN(arn string) string {
-	parts := strings.Split(arn, ":")
-	if len(parts) >= 4 {
-		return parts[3]
-	}
-	return ""
-}
-
 // inferPolicyTypeFromReason tries to extract policy type from "because" reason text.
 func inferPolicyTypeFromReason(reason string) string {
 	groups := extractNamedGroups(reReasonNoPolicy, reason)
