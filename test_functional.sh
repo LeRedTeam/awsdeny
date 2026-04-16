@@ -96,6 +96,12 @@ assert_contains "$OUT" "bucket policy" "Format B Resource: S3-specific explanati
 
 # ──────────────────────────────────────────────
 echo ""
+echo "--- Format B: Identity-based policy (article 'an') ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key with an implicit deny in an identity-based policy" 2>&1)
+assert_contains "$OUT" "Implicit deny" "Format B Identity-an: identifies implicit deny"
+assert_contains "$OUT" "Identity-based policy" "Format B Identity-an: identifies identity policy"
+
+echo ""
 echo "--- Format C: Enriched with reason (no identity policy) ---"
 OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key because no identity-based policy allows the s3:GetObject action" 2>&1)
 assert_contains "$OUT" "Implicit deny" "Format C Identity: identifies implicit deny"

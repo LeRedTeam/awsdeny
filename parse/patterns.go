@@ -8,13 +8,13 @@ var (
 	// Format I: Enriched with SCP ARN
 	// "...with an explicit deny in a service control policy arn:aws:organizations::111:policy/o-xxx/p-yyy"
 	reEnrichedWithPolicyARN = regexp.MustCompile(
-		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in a (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy) (?P<policy_arn>arn:aws:[^\s]+)`,
+		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy) (?P<policy_arn>arn:aws:[^\s]+)`,
 	)
 
 	// Format B: Enriched with policy type (no ARN)
 	// "...with an explicit deny in a service control policy"
 	reEnrichedDeny = regexp.MustCompile(
-		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in a (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy)`,
+		`User: (?P<principal>arn:aws:[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>arn:aws:[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy)`,
 	)
 
 	// Format C: Enriched with reason

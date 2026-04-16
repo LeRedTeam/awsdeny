@@ -133,6 +133,16 @@ func TestParseFormatB_ResourcePolicy(t *testing.T) {
 	assertEqual(t, "resource", p.PolicyType)
 }
 
+func TestParseFormatB_IdentityWithArticleAn(t *testing.T) {
+	// AWS uses "an identity-based policy" (not "a identity-based policy")
+	input := "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key with an implicit deny in an identity-based policy"
+	p := Parse(input)
+
+	assertEqual(t, "B", p.Format)
+	assertEqual(t, "implicit", p.DenyType)
+	assertEqual(t, "identity", p.PolicyType)
+}
+
 func TestParse_UnknownFormat(t *testing.T) {
 	input := "Something went wrong with permission"
 	p := Parse(input)
