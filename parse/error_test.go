@@ -163,6 +163,19 @@ func TestParseChinaPartition(t *testing.T) {
 	assertEqual(t, "arn:aws-cn:iam::123456789012:role/MyRole", p.Principal)
 }
 
+func TestParseNonARNResource(t *testing.T) {
+	// AWS sometimes returns bare resource names instead of ARNs (e.g., Secrets Manager)
+	input := "User: arn:aws:iam::123:role/MyRole is not authorized to perform: secretsmanager:GetSecretValue on resource: my-secret-name because no identity-based policy allows the secretsmanager:GetSecretValue action"
+	p := Parse(input)
+
+	assertEqual(t, "C", p.Format)
+	assertEqual(t, "secretsmanager:GetSecretValue", p.Action)
+	assertEqual(t, "my-secret-name", p.Resource)
+	assertEqual(t, "arn:aws:iam::123:role/MyRole", p.Principal)
+	assertEqual(t, "implicit", p.DenyType)
+	assertEqual(t, "identity", p.PolicyType)
+}
+
 func TestParse_UnknownFormat(t *testing.T) {
 	input := "Something went wrong with permission"
 	p := Parse(input)

@@ -11,25 +11,25 @@ var (
 	// Format I: Enriched with SCP ARN
 	// "...with an explicit deny in a service control policy arn:aws:organizations::111:policy/o-xxx/p-yyy"
 	reEnrichedWithPolicyARN = regexp.MustCompile(
-		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy) (?P<policy_arn>` + arnPrefix + `[^\s]+)`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy) (?P<policy_arn>` + arnPrefix + `[^\s]+)`,
 	)
 
 	// Format B: Enriched with policy type (no ARN)
 	// "...with an explicit deny in a service control policy"
 	reEnrichedDeny = regexp.MustCompile(
-		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy)`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>[^\s]+) with an (?P<deny_type>explicit deny|implicit deny) in an? (?P<policy_type>service control policy|identity-based policy|resource-based policy|permissions boundary|session policy)`,
 	)
 
 	// Format C: Enriched with reason
 	// "...because no identity-based policy allows the s3:GetObject action"
 	reEnrichedReason = regexp.MustCompile(
-		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+) because (?P<reason>.+)$`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>[^\s]+) because (?P<reason>.+)$`,
 	)
 
 	// Format A: Classic
 	// "User: arn:aws:iam::123:user/dev is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key"
 	reClassic = regexp.MustCompile(
-		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>` + arnPrefix + `[^\s]+)`,
+		`User: (?P<principal>` + arnPrefix + `[^\s]+) is not authorized to perform: (?P<action>[^\s]+) on resource: (?P<resource>[^\s]+)`,
 	)
 
 	// Format D: EC2 Encoded
