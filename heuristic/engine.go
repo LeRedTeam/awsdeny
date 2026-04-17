@@ -1,7 +1,9 @@
 package heuristic
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/leredteam/awsdeny/internal"
 )
@@ -91,6 +93,12 @@ func AnalyzeWithEnrichment(parsed internal.ParsedError, enrichment *internal.Enr
 		expl.Level = 3
 	} else if enrichment.PolicyFetched {
 		expl.Level = 2
+	}
+
+	// Add attached policy context for implicit denies
+	if len(enrichment.AttachedPolicies) > 0 {
+		policyList := strings.Join(enrichment.AttachedPolicies, ", ")
+		expl.Reason += fmt.Sprintf("\n\nYour role has %d attached policies: %s. None of them grant the required permission.", len(enrichment.AttachedPolicies), policyList)
 	}
 
 	// Add enrichment warnings

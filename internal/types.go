@@ -69,6 +69,7 @@ type EnrichmentResult struct {
 	SimulationConfirms    bool
 	SimulationContradicts bool
 	DecodedMessage        string // From sts:DecodeAuthorizationMessage
+	AttachedPolicies      []string // Policy ARNs attached to the principal's role
 	Warnings              []string
 }
 

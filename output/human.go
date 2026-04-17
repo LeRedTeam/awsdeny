@@ -79,6 +79,15 @@ func Human(w io.Writer, result internal.AnalysisResult) {
 	}
 	fmt.Fprintln(w)
 
+	// Show CloudWatch Insights query tip when we have enough context
+	if query := insightsQuery(p); query != "" {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "  CloudWatch Insights query to find similar events:")
+		for _, line := range wrapText(query, 70) {
+			fmt.Fprintf(w, "    %s\n", line)
+		}
+	}
+
 	if len(e.Warnings) > 0 {
 		fmt.Fprintln(w)
 		for _, warn := range e.Warnings {
@@ -122,6 +131,31 @@ func sourceTypeLabel(st string) string {
 	default:
 		return st
 	}
+}
+
+func insightsQuery(p internal.ParsedError) string {
+	var filters []string
+	if p.ErrorCode != "" {
+		filters = append(filters, fmt.Sprintf("errorCode = '%s'", p.ErrorCode))
+	} else {
+		filters = append(filters, "errorCode = 'AccessDenied'")
+	}
+	if p.Action != "" {
+		// Extract eventName from action (e.g., s3:GetObject -> GetObject)
+		parts := strings.SplitN(p.Action, ":", 2)
+		if len(parts) == 2 {
+			filters = append(filters, fmt.Sprintf("eventName = '%s'", parts[1]))
+		}
+	}
+	if p.Principal != "" {
+		filters = append(filters, fmt.Sprintf("userIdentity.arn = '%s'", p.Principal))
+	}
+
+	if len(filters) < 2 {
+		return "" // Not enough context for a useful query
+	}
+
+	return "fields @timestamp, errorCode, errorMessage, eventName, userIdentity.arn | filter " + strings.Join(filters, " and ") + " | sort @timestamp desc | limit 20"
 }
 
 func wrapText(text string, width int) []string {

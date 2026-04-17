@@ -204,6 +204,20 @@ func handleCloudTrail(ctx context.Context, path string, format string, enrichAct
 	if err := writeMultiOutput(os.Stdout, results, format); err != nil {
 		return fmt.Errorf("writing output: %w", err)
 	}
+
+	if len(results) > 1 {
+		// Count distinct patterns by heuristic ID
+		patterns := map[string]int{}
+		for _, r := range results {
+			id := r.Explanation.HeuristicID
+			if id == "" {
+				id = "unknown"
+			}
+			patterns[id]++
+		}
+		fmt.Fprintf(os.Stderr, "\nAnalyzed %d AccessDenied events: %d distinct error patterns\n", len(results), len(patterns))
+	}
+
 	return nil
 }
 

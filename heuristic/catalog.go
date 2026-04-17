@@ -1,6 +1,7 @@
 package heuristic
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/leredteam/awsdeny/internal"
@@ -96,6 +97,10 @@ var catalog = []Heuristic{
 			return p.PolicyType == "boundary"
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
+			firstSuggestion := "Check the permission boundary policy attached to your role/user"
+			if p.Action != "" && p.Resource != "" {
+				firstSuggestion = fmt.Sprintf("Add to your permission boundary: {\"Effect\": \"Allow\", \"Action\": \"%s\", \"Resource\": \"%s\"}", p.Action, p.Resource)
+			}
 			return internal.Explanation{
 				Summary:    "Blocked by permission boundary",
 				DenyType:   p.DenyType,
@@ -103,7 +108,7 @@ var catalog = []Heuristic{
 				SourceARN:  p.PolicyARN,
 				Reason:     "Your IAM principal has a permission boundary attached. Permission boundaries set the MAXIMUM permissions that identity-based policies can grant. Even if your role/user policy allows this action, if the permission boundary doesn't also allow it, the request is denied.",
 				Suggestions: []internal.Suggestion{
-					{Action: "Check the permission boundary policy attached to your role/user", Difficulty: "easy"},
+					{Action: firstSuggestion, Difficulty: "easy"},
 					{Action: "Request boundary modification from your IAM admin", Difficulty: "medium", Requires: "IAM admin"},
 					{Action: "Ensure both your identity policy AND permission boundary allow this action", Difficulty: "easy"},
 				},
@@ -297,13 +302,17 @@ var catalog = []Heuristic{
 			return principalAcct != "" && resourceAcct != "" && principalAcct != resourceAcct
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
+			firstSuggestion := "Check the target role's trust policy allows your principal"
+			if p.Principal != "" {
+				firstSuggestion = fmt.Sprintf("Add to the target role's trust policy: {\"Effect\": \"Allow\", \"Principal\": {\"AWS\": \"%s\"}, \"Action\": \"sts:AssumeRole\"}", p.Principal)
+			}
 			return internal.Explanation{
 				Summary:    "Cross-account AssumeRole denied",
 				DenyType:   orDefault(p.DenyType, "unknown"),
 				SourceType: "cross-account",
 				Reason:     "Cross-account AssumeRole requires BOTH: (1) the calling account's policy allows sts:AssumeRole on the target role, AND (2) the target role's trust policy allows the calling principal. One or both of these is missing.",
 				Suggestions: []internal.Suggestion{
-					{Action: "Check the target role's trust policy allows your principal", Difficulty: "easy", Requires: "target account access"},
+					{Action: firstSuggestion, Difficulty: "easy", Requires: "target account access"},
 					{Action: "Check your identity policy allows sts:AssumeRole on the target role ARN", Difficulty: "easy"},
 					{Action: "Ensure the trust policy specifies the correct principal ARN", Difficulty: "easy"},
 					{Action: "Check for ExternalId condition in the trust policy", Difficulty: "easy"},
@@ -431,17 +440,22 @@ var catalog = []Heuristic{
 			return p.PolicyType == "" || p.PolicyType == "resource"
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
+			suggestions := []internal.Suggestion{
+				{Action: "Check the KMS key policy: aws kms get-key-policy --key-id <key-id> --policy-name default", Difficulty: "easy"},
+				{Action: "Ensure the key policy has the standard 'Enable IAM policies' statement", Difficulty: "easy"},
+				{Action: "If cross-account, ensure access is configured in both key policy and IAM policy", Difficulty: "medium"},
+			}
+			if p.Principal != "" && p.Action != "" {
+				snippet := fmt.Sprintf("Add to the KMS key policy: {\"Sid\": \"AllowKeyAccess\", \"Effect\": \"Allow\", \"Principal\": {\"AWS\": \"%s\"}, \"Action\": \"%s\", \"Resource\": \"*\"}", p.Principal, p.Action)
+				suggestions = append([]internal.Suggestion{{Action: snippet, Difficulty: "easy"}}, suggestions...)
+			}
 			return internal.Explanation{
-				Summary:    "KMS key policy denies access",
-				DenyType:   orDefault(p.DenyType, "unknown"),
-				SourceType: "resource",
-				SourceARN:  p.PolicyARN,
-				Reason:     "KMS key policies are resource-based policies that are the PRIMARY authorization mechanism for KMS. Unlike most AWS services, KMS key policies are required to grant access — IAM policies alone are not sufficient unless the key policy delegates to IAM.",
-				Suggestions: []internal.Suggestion{
-					{Action: "Check the KMS key policy: aws kms get-key-policy --key-id <key-id> --policy-name default", Difficulty: "easy"},
-					{Action: "Ensure the key policy has the standard 'Enable IAM policies' statement", Difficulty: "easy"},
-					{Action: "If cross-account, ensure access is configured in both key policy and IAM policy", Difficulty: "medium"},
-				},
+				Summary:     "KMS key policy denies access",
+				DenyType:    orDefault(p.DenyType, "unknown"),
+				SourceType:  "resource",
+				SourceARN:   p.PolicyARN,
+				Reason:      "KMS key policies are resource-based policies that are the PRIMARY authorization mechanism for KMS. Unlike most AWS services, KMS key policies are required to grant access — IAM policies alone are not sufficient unless the key policy delegates to IAM.",
+				Suggestions: suggestions,
 			}
 		},
 	},
@@ -525,13 +539,17 @@ var catalog = []Heuristic{
 			return p.PolicyType == "session"
 		},
 		Explain: func(p internal.ParsedError) internal.Explanation {
+			firstSuggestion := "Check the session policy used when creating this session"
+			if p.Action != "" && p.Resource != "" {
+				firstSuggestion = fmt.Sprintf("Add to the session policy in your AssumeRole call: {\"Effect\": \"Allow\", \"Action\": \"%s\", \"Resource\": \"%s\"}", p.Action, p.Resource)
+			}
 			return internal.Explanation{
 				Summary:    "Blocked by session policy",
 				DenyType:   orDefault(p.DenyType, "implicit"),
 				SourceType: "session",
 				Reason:     "The IAM session was created with a session policy (passed during AssumeRole, GetFederationToken, or similar). Session policies limit the effective permissions to the intersection of the identity policy and the session policy.",
 				Suggestions: []internal.Suggestion{
-					{Action: "Check the session policy used when creating this session", Difficulty: "medium"},
+					{Action: firstSuggestion, Difficulty: "medium"},
 					{Action: "Remove or broaden the session policy in the AssumeRole call", Difficulty: "easy"},
 					{Action: "Add the required permission to the session policy", Difficulty: "easy"},
 				},
@@ -682,6 +700,97 @@ var catalog = []Heuristic{
 			}
 		},
 	},
+	// ──────────────────────────── Action Typo Detection ─────────────────────────
+	{
+		ID:              "TYPO-001",
+		Name:            "Possible Action Typo",
+		Category:        "common",
+		ConfidenceBoost: 0.15,
+		Match: func(p internal.ParsedError) bool {
+			if p.Action == "" {
+				return false
+			}
+			_, distance := closestCanonicalAction(p.Action)
+			return distance > 0 && distance <= 2
+		},
+		Explain: func(p internal.ParsedError) internal.Explanation {
+			closest, _ := closestCanonicalAction(p.Action)
+			return internal.Explanation{
+				Summary:    "Possible action name typo",
+				DenyType:   orDefault(p.DenyType, "unknown"),
+				SourceType: orDefault(p.PolicyType, "unknown"),
+				Reason:     fmt.Sprintf("The action '%s' may be misspelled. Did you mean '%s'?", p.Action, closest),
+				Suggestions: []internal.Suggestion{
+					{Action: fmt.Sprintf("Use '%s' instead of '%s'", closest, p.Action), Difficulty: "easy"},
+					{Action: "Check the AWS documentation for the correct action name", Difficulty: "easy"},
+				},
+			}
+		},
+	},
+}
+
+// Common IAM actions that developers frequently mistype
+var canonicalActions = []string{
+	"s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:ListAllMyBuckets",
+	"s3:GetBucketPolicy", "s3:PutBucketPolicy", "s3:GetBucketAcl",
+	"lambda:InvokeFunction", "lambda:CreateFunction", "lambda:GetFunction", "lambda:ListFunctions",
+	"dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan",
+	"ec2:RunInstances", "ec2:DescribeInstances", "ec2:StartInstances", "ec2:StopInstances", "ec2:TerminateInstances",
+	"iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:ListRoles", "iam:AttachRolePolicy",
+	"iam:CreateUser", "iam:DeleteUser", "iam:ListUsers", "iam:PassRole",
+	"sts:AssumeRole", "sts:GetCallerIdentity", "sts:GetSessionToken",
+	"sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage",
+	"sns:Publish", "sns:Subscribe", "sns:CreateTopic",
+	"kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey", "kms:DescribeKey",
+	"logs:CreateLogGroup", "logs:PutLogEvents", "logs:DescribeLogGroups",
+	"secretsmanager:GetSecretValue", "secretsmanager:CreateSecret",
+	"ssm:GetParameter", "ssm:PutParameter",
+	"ecr:GetAuthorizationToken", "ecr:BatchGetImage",
+	"ecs:RunTask", "ecs:DescribeTasks",
+	"cloudformation:CreateStack", "cloudformation:DescribeStacks",
+}
+
+func closestCanonicalAction(action string) (string, int) {
+	best := ""
+	bestDist := 999
+	lowerAction := strings.ToLower(action)
+	for _, canonical := range canonicalActions {
+		dist := levenshtein(lowerAction, strings.ToLower(canonical))
+		if dist < bestDist {
+			bestDist = dist
+			best = canonical
+		}
+	}
+	return best, bestDist
+}
+
+func levenshtein(a, b string) int {
+	la, lb := len(a), len(b)
+	if la == 0 {
+		return lb
+	}
+	if lb == 0 {
+		return la
+	}
+
+	prev := make([]int, lb+1)
+	curr := make([]int, lb+1)
+	for j := range prev {
+		prev[j] = j
+	}
+
+	for i := 1; i <= la; i++ {
+		curr[0] = i
+		for j := 1; j <= lb; j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			curr[j] = min(curr[j-1]+1, min(prev[j]+1, prev[j-1]+cost))
+		}
+		prev, curr = curr, prev
+	}
+	return prev[lb]
 }
 
 // Helper functions for catalog

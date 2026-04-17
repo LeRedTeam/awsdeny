@@ -3,6 +3,7 @@ package enrich
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -16,6 +17,7 @@ type IAMAPI interface {
 	GetPolicy(ctx context.Context, params *iam.GetPolicyInput, optFns ...func(*iam.Options)) (*iam.GetPolicyOutput, error)
 	GetPolicyVersion(ctx context.Context, params *iam.GetPolicyVersionInput, optFns ...func(*iam.Options)) (*iam.GetPolicyVersionOutput, error)
 	SimulatePrincipalPolicy(ctx context.Context, params *iam.SimulatePrincipalPolicyInput, optFns ...func(*iam.Options)) (*iam.SimulatePrincipalPolicyOutput, error)
+	ListAttachedRolePolicies(ctx context.Context, params *iam.ListAttachedRolePoliciesInput, optFns ...func(*iam.Options)) (*iam.ListAttachedRolePoliciesOutput, error)
 }
 
 // OrgsAPI abstracts Organizations API calls for testing.
@@ -58,4 +60,23 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 		STS:  sts.NewFromConfig(cfg),
 		cfg:  cfg,
 	}, nil
+}
+
+// ListAttachedRolePolicies returns the policy ARNs attached to the given IAM role.
+func (c *Client) ListAttachedRolePolicies(ctx context.Context, roleName string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	out, err := c.IAM.ListAttachedRolePolicies(ctx, &iam.ListAttachedRolePoliciesInput{
+		RoleName: aws.String(roleName),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("iam:ListAttachedRolePolicies: %w", err)
+	}
+
+	var arns []string
+	for _, p := range out.AttachedPolicies {
+		arns = append(arns, aws.ToString(p.PolicyArn))
+	}
+	return arns, nil
 }

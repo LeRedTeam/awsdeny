@@ -2,6 +2,7 @@ package enrich
 
 import (
 	"context"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
@@ -33,7 +34,7 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 		}
 	}
 
-	// Level 2.5: Decode EC2 encoded message
+	// Level 2.5a: Decode EC2 encoded message
 	if parsed.EncodedMessage != "" {
 		decoded, err := client.DecodeAuthorizationMessage(ctx, parsed.EncodedMessage)
 		if err != nil {
@@ -41,6 +42,19 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 				"Could not decode EC2 authorization message: "+err.Error())
 		} else {
 			result.DecodedMessage = decoded
+		}
+	}
+
+	// Level 2.5b: Principal introspection for implicit denies
+	if parsed.Principal != "" && (parsed.DenyType == "implicit" || parsed.PolicyType == "identity") {
+		roleName := extractRoleNameFromARN(parsed.Principal)
+		if roleName != "" {
+			policies, err := client.ListAttachedRolePolicies(ctx, roleName)
+			if err != nil {
+				result.Warnings = append(result.Warnings, "Could not list role policies: "+err.Error())
+			} else if len(policies) > 0 {
+				result.AttachedPolicies = policies
+			}
 		}
 	}
 
@@ -89,4 +103,24 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 	}
 
 	return result
+}
+
+// extractRoleNameFromARN extracts the IAM role name from an ARN.
+// Handles both arn:aws:iam::123:role/RoleName and arn:aws:sts::123:assumed-role/RoleName/session.
+func extractRoleNameFromARN(arn string) string {
+	parts := strings.Split(arn, ":")
+	if len(parts) < 6 {
+		return ""
+	}
+	resource := parts[5]
+	if strings.HasPrefix(resource, "role/") {
+		return strings.TrimPrefix(resource, "role/")
+	}
+	if strings.HasPrefix(resource, "assumed-role/") {
+		segments := strings.SplitN(resource, "/", 3)
+		if len(segments) >= 2 {
+			return segments[1]
+		}
+	}
+	return ""
 }
