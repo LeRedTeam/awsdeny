@@ -48,7 +48,7 @@ const gracePeriod = 7 * 24 * time.Hour
 // Validate validates a license key string and returns the license.
 func Validate(key string) (*License, error) {
 	if publicKeyB64 == "" {
-		return nil, fmt.Errorf("no public key configured (development build)")
+		return nil, fmt.Errorf("no license public key configured — use 'make build' for development or set publicKeyB64 via ldflags")
 	}
 
 	pubKey, err := base64.StdEncoding.DecodeString(publicKeyB64)

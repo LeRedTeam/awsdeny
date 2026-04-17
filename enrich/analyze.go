@@ -2,6 +2,7 @@ package enrich
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -25,16 +26,18 @@ type policyStatementRaw struct {
 }
 
 // ParsePolicyDocument parses a JSON policy document into structured statements.
-func ParsePolicyDocument(document string) ([]internal.PolicyStatement, error) {
+func ParsePolicyDocument(document string) ([]internal.PolicyStatement, []string, error) {
 	var doc policyDocument
 	if err := json.Unmarshal([]byte(document), &doc); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var statements []internal.PolicyStatement
+	var warnings []string
 	for _, raw := range doc.Statement {
 		var stmt policyStatementRaw
 		if err := json.Unmarshal(raw, &stmt); err != nil {
+			warnings = append(warnings, fmt.Sprintf("skipped malformed policy statement: %s", err))
 			continue
 		}
 
@@ -59,7 +62,7 @@ func ParsePolicyDocument(document string) ([]internal.PolicyStatement, error) {
 		statements = append(statements, ps)
 	}
 
-	return statements, nil
+	return statements, warnings, nil
 }
 
 // toStringSlice converts a JSON value that can be either a string or []string.

@@ -56,15 +56,15 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 			} else if len(policies) > 0 {
 				result.AttachedPolicies = policies
 			}
+		} else if parsed.Principal != "" {
+			result.Warnings = append(result.Warnings, "Principal is not an IAM role — attached policy analysis skipped")
 		}
 	}
 
 	// Level 2.5c: Rank attached policies by closeness to granting
 	if len(result.AttachedPolicies) > 0 && parsed.Action != "" {
-		closest, err := findClosestPolicy(ctx, client, result.AttachedPolicies, parsed.Action, parsed.Resource)
-		if err != nil {
-			result.Warnings = append(result.Warnings, "Could not analyze attached policies: "+err.Error())
-		} else if closest != nil {
+		closest := findClosestPolicy(ctx, client, result.AttachedPolicies, parsed.Action, parsed.Resource)
+		if closest != nil {
 			result.ClosestPolicy = closest
 		}
 	}
@@ -117,14 +117,16 @@ func Enrich(ctx context.Context, client *Client, parsed internal.ParsedError) *i
 }
 
 // findClosestPolicy fetches each attached policy and finds the one closest to granting the action.
-func findClosestPolicy(ctx context.Context, client *Client, policyARNs []string, action, resource string) (*internal.PolicySuggestion, error) {
+func findClosestPolicy(ctx context.Context, client *Client, policyARNs []string, action, resource string) *internal.PolicySuggestion {
 	var best *internal.PolicySuggestion
 	var bestScore int
+	var skipped int
 
 	for _, arn := range policyARNs {
 		_, statements, err := client.FetchPolicy(ctx, arn)
 		if err != nil {
-			continue // skip policies we can't fetch
+			skipped++
+			continue
 		}
 
 		score, reason := scorePolicyRelevance(statements, action, resource)
@@ -142,7 +144,7 @@ func findClosestPolicy(ctx context.Context, client *Client, policyARNs []string,
 			}
 		}
 	}
-	return best, nil
+	return best
 }
 
 // scorePolicyRelevance scores how close a policy is to granting the denied action.

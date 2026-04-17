@@ -50,7 +50,7 @@ func (c *Client) fetchIAMPolicy(ctx context.Context, policyARN string) (string, 
 		return "", nil, fmt.Errorf("decoding policy document: %w", err)
 	}
 
-	statements, err := ParsePolicyDocument(document)
+	statements, _, err := ParsePolicyDocument(document)
 	if err != nil {
 		return document, nil, fmt.Errorf("parsing policy document: %w", err)
 	}
@@ -73,7 +73,7 @@ func (c *Client) fetchSCPPolicy(ctx context.Context, policyARN string) (string, 
 	}
 
 	document := aws.ToString(out.Policy.Content)
-	statements, err := ParsePolicyDocument(document)
+	statements, _, err := ParsePolicyDocument(document)
 	if err != nil {
 		return document, nil, fmt.Errorf("parsing SCP document: %w", err)
 	}

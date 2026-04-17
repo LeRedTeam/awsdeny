@@ -1,6 +1,7 @@
 package parse
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,6 +57,14 @@ type cloudTrailRecords struct {
 
 // ParseCloudTrailFile reads a CloudTrail JSON file and returns parsed errors for denied events.
 func ParseCloudTrailFile(path string) ([]internal.ParsedError, error) {
+	const maxCloudTrailFileBytes = 10 << 20 // 10MB
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading CloudTrail file: %w", err)
+	}
+	if info.Size() > maxCloudTrailFileBytes {
+		return nil, fmt.Errorf("CloudTrail file too large (%d bytes, max %d)", info.Size(), maxCloudTrailFileBytes)
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading CloudTrail file: %w", err)
@@ -65,7 +74,7 @@ func ParseCloudTrailFile(path string) ([]internal.ParsedError, error) {
 
 // ParseCloudTrailDir reads all JSON files in a directory and returns parsed errors.
 // Files that fail to parse are reported via warnings on stderr.
-func ParseCloudTrailDir(dir string) ([]internal.ParsedError, error) {
+func ParseCloudTrailDir(ctx context.Context, dir string) ([]internal.ParsedError, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("reading directory: %w", err)
@@ -74,6 +83,9 @@ func ParseCloudTrailDir(dir string) ([]internal.ParsedError, error) {
 	var results []internal.ParsedError
 	var skipped int
 	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return results, ctx.Err()
+		}
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
@@ -126,13 +138,15 @@ func parseCloudTrailEvents(events []cloudTrailEvent) []internal.ParsedError {
 
 func isAccessDenied(event cloudTrailEvent) bool {
 	code := strings.ToLower(event.ErrorCode)
-	return code == "accessdenied" ||
-		code == "accessdeniedexception" ||
-		code == "unauthorizedaccess" ||
+	// Explicit codes that don't contain "accessdenied"
+	if code == "unauthorizedaccess" ||
 		code == "unauthorizedoperation" ||
-		code == "client.unauthorizedaccess" ||
-		// Intentional catch-all for service-specific codes like SomeServiceAccessDeniedException
-		strings.Contains(code, "accessdenied")
+		code == "client.unauthorizedaccess" {
+		return true
+	}
+	// Catch-all for AccessDenied, AccessDeniedException, and service-specific
+	// variants like ThingAccessDeniedException
+	return strings.Contains(code, "accessdenied")
 }
 
 func parseCloudTrailEvent(event cloudTrailEvent) internal.ParsedError {
@@ -216,17 +230,6 @@ func mapEventToAction(eventSource, eventName string) string {
 	return ""
 }
 
-// partitionFromRegion infers the AWS partition from the region string.
-func partitionFromRegion(region string) string {
-	if strings.HasPrefix(region, "us-gov-") {
-		return "aws-us-gov"
-	}
-	if strings.HasPrefix(region, "cn-") {
-		return "aws-cn"
-	}
-	return "aws"
-}
-
 // inferResourceFromParams tries to build a resource ARN from CloudTrail requestParameters.
 func inferResourceFromParams(event cloudTrailEvent) string {
 	if event.RequestParameters == nil {
@@ -234,7 +237,7 @@ func inferResourceFromParams(event cloudTrailEvent) string {
 	}
 
 	service := strings.TrimSuffix(event.EventSource, ".amazonaws.com")
-	partition := partitionFromRegion(event.AWSRegion)
+	partition := internal.PartitionFromRegion(event.AWSRegion)
 
 	switch service {
 	case "s3":

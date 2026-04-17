@@ -115,16 +115,25 @@ func runExplain(cmd *cobra.Command, args []string) error {
 
 	// Offline policy analysis (free tier, no credentials needed)
 	if policyFile != "" {
+		const maxPolicyFileBytes = 1 << 20 // 1MB
+		info, err := os.Stat(policyFile)
+		if err != nil {
+			return fmt.Errorf("reading policy file: %w", err)
+		}
+		if info.Size() > maxPolicyFileBytes {
+			return fmt.Errorf("policy file too large (%d bytes, max %d)", info.Size(), maxPolicyFileBytes)
+		}
 		data, err := os.ReadFile(policyFile)
 		if err != nil {
 			return fmt.Errorf("reading policy file: %w", err)
 		}
-		statements, err := enrich.ParsePolicyDocument(string(data))
+		statements, policyWarnings, err := enrich.ParsePolicyDocument(string(data))
 		if err != nil {
 			return fmt.Errorf("parsing policy file: %w", err)
 		}
 
 		enrichResult := &internal.EnrichmentResult{
+			Warnings: policyWarnings,
 			PolicyFetched:      true,
 			PolicyDocument:     string(data),
 			MatchingStatements: enrich.FindMatchingStatements(statements, parsed.Action, parsed.Resource),
@@ -195,10 +204,8 @@ func analyzeError(ctx context.Context, parsed internal.ParsedError, enrichActive
 	if enrichActive {
 		client, err := enrich.NewClient(ctx, awsRegion, awsProfile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Could not create AWS client: %s\n", err)
-			fmt.Fprintf(os.Stderr, "Falling back to Level 1 analysis.\n\n")
 			result.Explanation.Warnings = append(result.Explanation.Warnings,
-				"Enrichment failed: "+err.Error())
+				"Could not create AWS client: "+err.Error()+". Falling back to Level 1 analysis.")
 			return result
 		}
 
@@ -218,7 +225,7 @@ func handleCloudTrail(ctx context.Context, path string, format string, enrichAct
 
 	var parsedErrors []internal.ParsedError
 	if info.IsDir() {
-		parsedErrors, err = parse.ParseCloudTrailDir(path)
+		parsedErrors, err = parse.ParseCloudTrailDir(ctx, path)
 	} else {
 		parsedErrors, err = parse.ParseCloudTrailFile(path)
 	}

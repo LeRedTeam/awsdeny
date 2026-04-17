@@ -11,7 +11,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func resetFlags() {
+	errorMsg = ""
+	useStdin = false
+	cloudtrailPath = ""
+	doEnrich = false
+	awsProfile = ""
+	awsRegion = ""
+	formatFlag = ""
+	policyFile = ""
+}
+
 func TestRunExplain_WithErrorFlag(t *testing.T) {
+	t.Cleanup(resetFlags)
 	errorMsg = "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key because no identity-based policy allows the s3:GetObject action"
 	useStdin = false
 	cloudtrailPath = ""
@@ -25,6 +37,7 @@ func TestRunExplain_WithErrorFlag(t *testing.T) {
 }
 
 func TestRunExplain_WithPositionalArgs(t *testing.T) {
+	t.Cleanup(resetFlags)
 	errorMsg = ""
 	useStdin = false
 	cloudtrailPath = ""
@@ -44,6 +57,7 @@ func TestRunExplain_WithPositionalArgs(t *testing.T) {
 }
 
 func TestRunExplain_NoInput(t *testing.T) {
+	t.Cleanup(resetFlags)
 	errorMsg = ""
 	useStdin = false
 	cloudtrailPath = ""
@@ -58,6 +72,7 @@ func TestRunExplain_NoInput(t *testing.T) {
 }
 
 func TestGetErrorMessage_ErrorFlag(t *testing.T) {
+	t.Cleanup(resetFlags)
 	errorMsg = "test error"
 	useStdin = false
 
@@ -71,6 +86,7 @@ func TestGetErrorMessage_ErrorFlag(t *testing.T) {
 }
 
 func TestGetErrorMessage_PositionalArgs(t *testing.T) {
+	t.Cleanup(resetFlags)
 	errorMsg = ""
 	useStdin = false
 
@@ -84,6 +100,7 @@ func TestGetErrorMessage_PositionalArgs(t *testing.T) {
 }
 
 func TestGetErrorMessage_NoInput(t *testing.T) {
+	t.Cleanup(resetFlags)
 	errorMsg = ""
 	useStdin = false
 
@@ -94,6 +111,7 @@ func TestGetErrorMessage_NoInput(t *testing.T) {
 }
 
 func TestWriteOutput_JSON(t *testing.T) {
+	t.Cleanup(resetFlags)
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
 	result := analyzeError(context.TODO(), parsed, false)
@@ -107,6 +125,7 @@ func TestWriteOutput_JSON(t *testing.T) {
 }
 
 func TestWriteOutput_Human(t *testing.T) {
+	t.Cleanup(resetFlags)
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
 	result := analyzeError(context.TODO(), parsed, false)
@@ -120,6 +139,7 @@ func TestWriteOutput_Human(t *testing.T) {
 }
 
 func TestWriteOutput_GitHub(t *testing.T) {
+	t.Cleanup(resetFlags)
 	var buf bytes.Buffer
 	parsed := parse.Parse("User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key")
 	result := analyzeError(context.TODO(), parsed, false)

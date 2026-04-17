@@ -19,3 +19,14 @@ func ExtractRegionFromARN(arn string) string {
 	}
 	return ""
 }
+
+// PartitionFromRegion infers the AWS partition from the region string.
+func PartitionFromRegion(region string) string {
+	if strings.HasPrefix(region, "us-gov-") {
+		return "aws-us-gov"
+	}
+	if strings.HasPrefix(region, "cn-") {
+		return "aws-cn"
+	}
+	return "aws"
+}

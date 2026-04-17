@@ -27,7 +27,7 @@ func TestParsePolicyDocument(t *testing.T) {
 		]
 	}`
 
-	stmts, err := ParsePolicyDocument(doc)
+	stmts, _, err := ParsePolicyDocument(doc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestFindMatchingStatements(t *testing.T) {
 		]
 	}`
 
-	stmts, _ := ParsePolicyDocument(doc)
+	stmts, _, _ := ParsePolicyDocument(doc)
 	matches := FindMatchingStatements(stmts, "s3:GetObject", "arn:aws:s3:::bucket/key")
 
 	if len(matches) != 2 {
@@ -183,7 +183,7 @@ func TestAnalyzeStatements_ExplicitDeny(t *testing.T) {
 		]
 	}`
 
-	stmts, _ := ParsePolicyDocument(doc)
+	stmts, _, _ := ParsePolicyDocument(doc)
 	denyType, reason := AnalyzeStatements(stmts, "s3:GetObject", "arn:aws:s3:::bucket/key")
 
 	if denyType != "explicit" {
@@ -202,7 +202,7 @@ func TestAnalyzeStatements_ImplicitDeny(t *testing.T) {
 		]
 	}`
 
-	stmts, _ := ParsePolicyDocument(doc)
+	stmts, _, _ := ParsePolicyDocument(doc)
 	denyType, _ := AnalyzeStatements(stmts, "s3:GetObject", "arn:aws:s3:::bucket/key")
 
 	if denyType != "implicit" {

@@ -11,6 +11,9 @@ var (
 
 	// Matches AWS temporary session tokens (long base64 strings in credential-like contexts)
 	reSessionToken = regexp.MustCompile(`(?i)(?:session.?token|security.?token|aws_session_token)\s*[=:]\s*[A-Za-z0-9/+=_-]{50,}`)
+
+	// Matches known STS session token base64 prefixes (protobuf header bytes)
+	reSTSTokenPrefix = regexp.MustCompile(`(?:FwoGZXIv|IQoJb3J|AgoGb3J)[A-Za-z0-9/+=_-]{50,}`)
 )
 
 // Sanitize replaces potential credentials in a string with [REDACTED].
@@ -18,5 +21,6 @@ func Sanitize(s string) string {
 	s = reAccessKeyID.ReplaceAllString(s, "[REDACTED]")
 	s = reSecretAccessKey.ReplaceAllString(s, "[REDACTED]")
 	s = reSessionToken.ReplaceAllString(s, "[REDACTED]")
+	s = reSTSTokenPrefix.ReplaceAllString(s, "[REDACTED]")
 	return s
 }
