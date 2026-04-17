@@ -1,5 +1,5 @@
-# Development public key (safe to commit — this is the verifier, not the signer)
-DEV_PUBLIC_KEY := xsBLUAYPPViUuMxoK6EOHxeUoxaishXba9DU+5ktZBk=
+# Production public key (safe to commit — this is the verifier, not the signer)
+DEV_PUBLIC_KEY := 9eEV9Bgbkys+eHzAqWJ2Qk+p4hxH6Ow5sKqQl7sleak=
 
 LDFLAGS := -s -w \
 	-X github.com/leredteam/awsdeny/cmd.version=dev \
