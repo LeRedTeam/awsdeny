@@ -1,0 +1,323 @@
+name: Test GitHub Action
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'action/**'
+      - 'action.yml'
+      - '.github/workflows/test-action.yml'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  test-action-basic:
+    name: "Basic: error input with all fields"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action
+        id: explain
+        uses: ./
+        with:
+          error: "User: arn:aws:iam::123456789012:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::my-bucket/data.csv because no identity-based policy allows the s3:GetObject action"
+
+      - name: Verify outputs are populated
+        run: |
+          set -e
+          echo "=== Checking outputs ==="
+
+          echo "Explanation output length: ${#EXPLANATION}"
+          if [ -z "$EXPLANATION" ]; then
+            echo "FAIL: explanation output is empty"
+            exit 1
+          fi
+          echo "PASS: explanation output populated"
+
+          # Verify explanation is valid JSON
+          echo "$EXPLANATION" | jq . > /dev/null
+          echo "PASS: explanation is valid JSON"
+
+          # Verify JSON has expected fields
+          STATUS=$(echo "$EXPLANATION" | jq -r '.status')
+          if [ "$STATUS" != "denied" ]; then
+            echo "FAIL: expected status=denied, got $STATUS"
+            exit 1
+          fi
+          echo "PASS: status=denied"
+
+          ACTION=$(echo "$EXPLANATION" | jq -r '.action')
+          if [ "$ACTION" != "s3:GetObject" ]; then
+            echo "FAIL: expected action=s3:GetObject, got $ACTION"
+            exit 1
+          fi
+          echo "PASS: action=s3:GetObject"
+
+          HEURISTIC=$(echo "$EXPLANATION" | jq -r '.analysis.matched_heuristic')
+          if [ "$HEURISTIC" != "IDENT-001" ]; then
+            echo "FAIL: expected heuristic=IDENT-001, got $HEURISTIC"
+            exit 1
+          fi
+          echo "PASS: heuristic=IDENT-001"
+
+          if [ -z "$CONFIDENCE" ]; then
+            echo "FAIL: confidence output is empty"
+            exit 1
+          fi
+          echo "PASS: confidence=$CONFIDENCE"
+
+          if [ -z "$ACTION_OUT" ]; then
+            echo "FAIL: action output is empty"
+            exit 1
+          fi
+          echo "PASS: action output=$ACTION_OUT"
+
+          if [ -z "$RESOURCE_OUT" ]; then
+            echo "FAIL: resource output is empty"
+            exit 1
+          fi
+          echo "PASS: resource output=$RESOURCE_OUT"
+
+          echo ""
+          echo "=== All output checks passed ==="
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
+          CONFIDENCE: ${{ steps.explain.outputs.confidence }}
+          ACTION_OUT: ${{ steps.explain.outputs.action }}
+          RESOURCE_OUT: ${{ steps.explain.outputs.resource }}
+
+      - name: Verify job summary was written
+        run: |
+          if [ ! -s "$GITHUB_STEP_SUMMARY" ]; then
+            echo "WARNING: GITHUB_STEP_SUMMARY file is empty (may have been consumed)"
+          else
+            echo "PASS: GITHUB_STEP_SUMMARY file exists and is non-empty"
+          fi
+
+  test-action-scp:
+    name: "SCP: explicit deny with policy ARN"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action with SCP error
+        id: explain
+        uses: ./
+        with:
+          error: "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:PutObject on resource: arn:aws:s3:::bucket/key with an explicit deny in a service control policy arn:aws:organizations::111:policy/o-xxx/p-yyy"
+
+      - name: Verify SCP detection
+        run: |
+          set -e
+          HEURISTIC=$(echo "$EXPLANATION" | jq -r '.analysis.matched_heuristic')
+          if [ "$HEURISTIC" != "SCP-001" ]; then
+            echo "FAIL: expected SCP-001, got $HEURISTIC"
+            exit 1
+          fi
+          echo "PASS: SCP-001 detected"
+
+          SOURCE=$(echo "$EXPLANATION" | jq -r '.analysis.source_arn')
+          if [ "$SOURCE" != "arn:aws:organizations::111:policy/o-xxx/p-yyy" ]; then
+            echo "FAIL: expected SCP ARN in source_arn"
+            exit 1
+          fi
+          echo "PASS: SCP ARN captured"
+
+          DENY=$(echo "$EXPLANATION" | jq -r '.analysis.deny_type')
+          if [ "$DENY" != "explicit" ]; then
+            echo "FAIL: expected explicit deny, got $DENY"
+            exit 1
+          fi
+          echo "PASS: explicit deny"
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
+
+  test-action-cross-account:
+    name: "Cross-account: AssumeRole"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action with cross-account error
+        id: explain
+        uses: ./
+        with:
+          error: "User: arn:aws:iam::111111111111:user/dev is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::222222222222:role/TargetRole"
+
+      - name: Verify cross-account detection
+        run: |
+          set -e
+          HEURISTIC=$(echo "$EXPLANATION" | jq -r '.analysis.matched_heuristic')
+          if [ "$HEURISTIC" != "XACCT-001" ]; then
+            echo "FAIL: expected XACCT-001, got $HEURISTIC"
+            exit 1
+          fi
+          echo "PASS: XACCT-001 detected"
+
+          # Verify trust policy snippet is in suggestions
+          SUGGESTION=$(echo "$EXPLANATION" | jq -r '.suggestions[0].action')
+          if ! echo "$SUGGESTION" | grep -q "trust policy"; then
+            echo "FAIL: first suggestion should mention trust policy"
+            exit 1
+          fi
+          echo "PASS: trust policy snippet present"
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
+
+  test-action-cli-wrapper:
+    name: "CLI wrapper: Lambda invoke"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action with CLI-wrapped error
+        id: explain
+        uses: ./
+        with:
+          error: "An error occurred (AccessDeniedException) when calling the Invoke operation: User: arn:aws:iam::123:role/MyRole is not authorized to perform: lambda:InvokeFunction on resource: arn:aws:lambda:us-east-1:123:function:my-func because no identity-based policy allows the lambda:InvokeFunction action"
+
+      - name: Verify CLI wrapper parsing
+        run: |
+          set -e
+          ACTION=$(echo "$EXPLANATION" | jq -r '.action')
+          if [ "$ACTION" != "lambda:InvokeFunction" ]; then
+            echo "FAIL: expected lambda:InvokeFunction, got $ACTION"
+            exit 1
+          fi
+          echo "PASS: action extracted through CLI wrapper"
+
+          PRINCIPAL=$(echo "$EXPLANATION" | jq -r '.principal')
+          if [ "$PRINCIPAL" != "arn:aws:iam::123:role/MyRole" ]; then
+            echo "FAIL: principal not extracted"
+            exit 1
+          fi
+          echo "PASS: principal extracted"
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
+
+  test-action-typo:
+    name: "Typo detection: s3:GetObjects"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action with typo
+        id: explain
+        uses: ./
+        with:
+          error: "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObjects on resource: arn:aws:s3:::bucket/key"
+
+      - name: Verify typo detection
+        run: |
+          set -e
+          HEURISTIC=$(echo "$EXPLANATION" | jq -r '.analysis.matched_heuristic')
+          if [ "$HEURISTIC" != "TYPO-001" ]; then
+            echo "FAIL: expected TYPO-001, got $HEURISTIC"
+            exit 1
+          fi
+          echo "PASS: typo detected"
+
+          REASON=$(echo "$EXPLANATION" | jq -r '.analysis.reason')
+          if ! echo "$REASON" | grep -q "s3:GetObject"; then
+            echo "FAIL: should suggest s3:GetObject"
+            exit 1
+          fi
+          echo "PASS: correct action suggested"
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
+
+  test-action-minimal:
+    name: "Minimal: bare Access Denied"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action with minimal error
+        id: explain
+        uses: ./
+        with:
+          error: "An error occurred (AccessDenied) when calling the GetObject operation: Access Denied"
+
+      - name: Verify minimal parsing
+        run: |
+          set -e
+          ACTION=$(echo "$EXPLANATION" | jq -r '.action')
+          if [ "$ACTION" != "s3:GetObject" ]; then
+            echo "FAIL: expected s3:GetObject inferred from operation, got $ACTION"
+            exit 1
+          fi
+          echo "PASS: action inferred from operation name"
+
+          CONFIDENCE=$(echo "$EXPLANATION" | jq -r '.confidence')
+          echo "PASS: confidence=$CONFIDENCE"
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
+
+  test-action-non-arn-resource:
+    name: "Non-ARN resource: Secrets Manager"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action with non-ARN resource
+        id: explain
+        uses: ./
+        with:
+          error: "User: arn:aws:iam::123:role/MyRole is not authorized to perform: secretsmanager:GetSecretValue on resource: my-secret-name because no identity-based policy allows the secretsmanager:GetSecretValue action"
+
+      - name: Verify non-ARN resource parsing
+        run: |
+          set -e
+          ACTION=$(echo "$EXPLANATION" | jq -r '.action')
+          if [ "$ACTION" != "secretsmanager:GetSecretValue" ]; then
+            echo "FAIL: expected secretsmanager:GetSecretValue, got $ACTION"
+            exit 1
+          fi
+          echo "PASS: action parsed"
+
+          RESOURCE=$(echo "$EXPLANATION" | jq -r '.resource')
+          if [ "$RESOURCE" != "my-secret-name" ]; then
+            echo "FAIL: expected resource=my-secret-name, got $RESOURCE"
+            exit 1
+          fi
+          echo "PASS: non-ARN resource parsed"
+
+          HEURISTIC=$(echo "$EXPLANATION" | jq -r '.analysis.matched_heuristic')
+          if [ "$HEURISTIC" != "IDENT-001" ]; then
+            echo "FAIL: expected IDENT-001, got $HEURISTIC"
+            exit 1
+          fi
+          echo "PASS: IDENT-001 matched"
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
+
+  test-action-special-chars:
+    name: "Special chars in error message"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run awsdeny action with special characters
+        id: explain
+        uses: ./
+        with:
+          error: "User: arn:aws:iam::123:role/My-Role_v2.0 is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/path/to/file (copy).tar.gz"
+
+      - name: Verify special char handling
+        run: |
+          set -e
+          # Should not crash, should produce valid JSON
+          echo "$EXPLANATION" | jq . > /dev/null
+          echo "PASS: valid JSON output with special chars"
+
+          ACTION=$(echo "$EXPLANATION" | jq -r '.action')
+          if [ "$ACTION" != "s3:GetObject" ]; then
+            echo "FAIL: action not parsed with special chars"
+            exit 1
+          fi
+          echo "PASS: action parsed despite special chars in resource"
+        env:
+          EXPLANATION: ${{ steps.explain.outputs.explanation }}
