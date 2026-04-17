@@ -24,8 +24,8 @@ type policyStatementRaw struct {
 	Condition map[string]map[string]interface{} `json:"Condition"`
 }
 
-// parsePolicyDocument parses a JSON policy document into structured statements.
-func parsePolicyDocument(document string) ([]internal.PolicyStatement, error) {
+// ParsePolicyDocument parses a JSON policy document into structured statements.
+func ParsePolicyDocument(document string) ([]internal.PolicyStatement, error) {
 	var doc policyDocument
 	if err := json.Unmarshal([]byte(document), &doc); err != nil {
 		return nil, err

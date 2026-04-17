@@ -467,6 +467,68 @@ assert_contains "$OUT" "sort @timestamp desc" "Insights syntax: has sort"
 
 # ──────────────────────────────────────────────
 echo ""
+echo "--- Feature: Offline policy-file mode ---"
+
+# Create test policy
+POLICY_FILE=$(mktemp)
+cat > "$POLICY_FILE" << 'POLICYEOF'
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowS3",
+            "Effect": "Allow",
+            "Action": ["s3:GetObject", "s3:PutObject"],
+            "Resource": "arn:aws:s3:::my-bucket/*"
+        },
+        {
+            "Sid": "DenyDelete",
+            "Effect": "Deny",
+            "Action": "s3:DeleteObject",
+            "Resource": "*"
+        }
+    ]
+}
+POLICYEOF
+
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:DeleteObject on resource: arn:aws:s3:::my-bucket/file.txt" --policy-file "$POLICY_FILE" 2>&1)
+assert_contains "$OUT" "Explicit deny" "PolicyFile: finds explicit deny"
+assert_contains "$OUT" "DenyDelete" "PolicyFile: shows statement Sid"
+
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: ec2:RunInstances on resource: arn:aws:ec2:us-east-1:123:instance/*" --policy-file "$POLICY_FILE" 2>&1)
+assert_contains "$OUT" "Access Denied" "PolicyFile: handles action not in policy"
+
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:DeleteObject on resource: arn:aws:s3:::my-bucket/file.txt" --policy-file "$POLICY_FILE" --format json 2>&1)
+assert_valid_json "$OUT" "PolicyFile JSON: valid JSON output"
+assert_contains "$OUT" '"level": 2' "PolicyFile JSON: level 2 analysis"
+
+# Policy file doesn't require a license (free tier)
+OUT=$(AWSDENY_LICENSE_KEY="" $BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key" --policy-file "$POLICY_FILE" 2>&1)
+assert_contains "$OUT" "Access Denied" "PolicyFile: works without license (free tier)"
+
+# Policy file with conditional deny
+COND_FILE=$(mktemp)
+cat > "$COND_FILE" << 'CONDEOF'
+{
+    "Version": "2012-10-17",
+    "Statement": [{
+        "Sid": "RequireSSL",
+        "Effect": "Deny",
+        "Action": "s3:*",
+        "Resource": "*",
+        "Condition": {"Bool": {"aws:SecureTransport": "false"}}
+    }]
+}
+CONDEOF
+
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key" --policy-file "$COND_FILE" --format json 2>&1)
+assert_contains "$OUT" "conditional" "PolicyFile: conditional deny with conditions"
+assert_contains "$OUT" "SecureTransport" "PolicyFile: shows condition key"
+
+rm -f "$POLICY_FILE" "$COND_FILE"
+
+# ──────────────────────────────────────────────
+echo ""
 echo "========================================"
 echo "Results: $PASS passed, $FAIL failed out of $TOTAL tests"
 echo "========================================"

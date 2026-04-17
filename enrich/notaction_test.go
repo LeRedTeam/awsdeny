@@ -22,7 +22,7 @@ func TestNotAction_DenyAllExcept(t *testing.T) {
 		]
 	}`
 
-	stmts, err := parsePolicyDocument(doc)
+	stmts, err := ParsePolicyDocument(doc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestNotAction_AnalyzeStatements(t *testing.T) {
 		]
 	}`
 
-	stmts, _ := parsePolicyDocument(doc)
+	stmts, _ := ParsePolicyDocument(doc)
 
 	// ec2 action should be explicitly denied
 	denyType, _ := AnalyzeStatements(stmts, "ec2:RunInstances", "*")
@@ -90,7 +90,7 @@ func TestNotAction_ParsesCorrectly(t *testing.T) {
 		]
 	}`
 
-	stmts, err := parsePolicyDocument(doc)
+	stmts, err := ParsePolicyDocument(doc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

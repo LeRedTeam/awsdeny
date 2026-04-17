@@ -57,6 +57,13 @@ type Suggestion struct {
 	Requires   string // Who/what is needed (e.g., "org admin", "bucket owner")
 }
 
+// PolicySuggestion describes an attached policy that's closest to granting the denied permission.
+type PolicySuggestion struct {
+	PolicyARN  string
+	PolicyName string
+	Reason     string // e.g., "allows s3:GetObject on arn:aws:s3:::other-bucket/*"
+}
+
 // EnrichmentResult holds data from AWS API calls (Levels 2-3).
 type EnrichmentResult struct {
 	PolicyFetched         bool
@@ -70,6 +77,7 @@ type EnrichmentResult struct {
 	SimulationContradicts bool
 	DecodedMessage        string // From sts:DecodeAuthorizationMessage
 	AttachedPolicies      []string // Policy ARNs attached to the principal's role
+	ClosestPolicy         *PolicySuggestion // The attached policy closest to granting the permission
 	Warnings              []string
 }
 

@@ -25,6 +25,7 @@ var (
 	awsProfile     string
 	awsRegion      string
 	formatFlag     string
+	policyFile     string
 )
 
 var explainCmd = &cobra.Command{
@@ -46,6 +47,7 @@ func init() {
 	explainCmd.Flags().StringVar(&awsProfile, "profile", "", "AWS profile to use for enrichment")
 	explainCmd.Flags().StringVar(&awsRegion, "region", "", "AWS region for API calls")
 	explainCmd.Flags().StringVarP(&formatFlag, "format", "f", "", "Output format: human (default), json, sarif, github")
+	explainCmd.Flags().StringVar(&policyFile, "policy-file", "", "Path to a local IAM policy JSON file for offline analysis")
 }
 
 func runExplain(cmd *cobra.Command, args []string) error {
@@ -109,6 +111,39 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	if parsed.Format == "unknown" && parsed.Action == "" && parsed.Principal == "" {
 		return internal.NewExitError(internal.ExitParseError,
 			"Could not parse this error format.\nIf this is a valid AccessDenied error, please file an issue:\n  https://github.com/leredteam/awsdeny/issues")
+	}
+
+	// Offline policy analysis (free tier, no credentials needed)
+	if policyFile != "" {
+		data, err := os.ReadFile(policyFile)
+		if err != nil {
+			return fmt.Errorf("reading policy file: %w", err)
+		}
+		statements, err := enrich.ParsePolicyDocument(string(data))
+		if err != nil {
+			return fmt.Errorf("parsing policy file: %w", err)
+		}
+
+		enrichResult := &internal.EnrichmentResult{
+			PolicyFetched:      true,
+			PolicyDocument:     string(data),
+			MatchingStatements: enrich.FindMatchingStatements(statements, parsed.Action, parsed.Resource),
+		}
+		if len(enrichResult.MatchingStatements) > 0 {
+			denyType, reason := enrich.AnalyzeStatements(enrichResult.MatchingStatements, parsed.Action, parsed.Resource)
+			enrichResult.PolicyDenyType = denyType
+			enrichResult.PolicyDenyReason = reason
+		}
+
+		result := internal.AnalysisResult{
+			Parsed:      parsed,
+			Explanation: heuristic.AnalyzeWithEnrichment(parsed, enrichResult),
+			Enrichment:  enrichResult,
+		}
+		if err := writeOutput(os.Stdout, result, format); err != nil {
+			return fmt.Errorf("writing output: %w", err)
+		}
+		return nil
 	}
 
 	// Run analysis

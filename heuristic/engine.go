@@ -96,7 +96,12 @@ func AnalyzeWithEnrichment(parsed internal.ParsedError, enrichment *internal.Enr
 	}
 
 	// Add attached policy context for implicit denies
-	if len(enrichment.AttachedPolicies) > 0 {
+	if enrichment.ClosestPolicy != nil {
+		expl.Reason += fmt.Sprintf("\n\nClosest policy to fix: %s — %s", enrichment.ClosestPolicy.PolicyName, enrichment.ClosestPolicy.Reason)
+		if len(enrichment.AttachedPolicies) > 1 {
+			expl.Reason += fmt.Sprintf(" (checked %d attached policies)", len(enrichment.AttachedPolicies))
+		}
+	} else if len(enrichment.AttachedPolicies) > 0 {
 		policyList := strings.Join(enrichment.AttachedPolicies, ", ")
 		expl.Reason += fmt.Sprintf("\n\nYour role has %d attached policies: %s. None of them grant the required permission.", len(enrichment.AttachedPolicies), policyList)
 	}
