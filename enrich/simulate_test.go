@@ -12,8 +12,8 @@ func TestNormalizeToIAMArn_AssumedRole(t *testing.T) {
 }
 
 func TestNormalizeToIAMArn_AssumedRoleWithEmail(t *testing.T) {
-	input := "arn:aws:sts::590183662398:assumed-role/AWSReservedSSO_Data-dev-data-admins_2603dda8ad83fd17/edgar@edpuzzle.com"
-	expected := "arn:aws:iam::590183662398:role/AWSReservedSSO_Data-dev-data-admins_2603dda8ad83fd17"
+	input := "arn:aws:sts::123456789012:assumed-role/MySSO_Role_abc123/user@example.com"
+	expected := "arn:aws:iam::123456789012:role/MySSO_Role_abc123"
 	result := normalizeToIAMArn(input)
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
