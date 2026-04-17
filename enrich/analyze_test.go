@@ -90,6 +90,7 @@ func TestMatchActionPattern(t *testing.T) {
 		{"s3:GetObject", "s3:PutObject", false},
 		// Actions are case-insensitive
 		{"s3:GetObject", "S3:getobject", true},
+		{"S3:GETOBJECT", "s3:GetObject", true},
 	}
 
 	for _, tt := range tests {
@@ -112,12 +113,64 @@ func TestMatchResourcePattern(t *testing.T) {
 		// Resource ARNs are case-sensitive (e.g., S3 object keys)
 		{"arn:aws:s3:::bucket/Key", "arn:aws:s3:::bucket/Key", true},
 		{"arn:aws:s3:::bucket/Key", "arn:aws:s3:::bucket/key", false},
+		// Mid-string wildcards
+		{"arn:aws:s3:::bucket/*/data.csv", "arn:aws:s3:::bucket/folder/data.csv", true},
+		{"arn:aws:s3:::bucket/*/data.csv", "arn:aws:s3:::bucket/a/b/data.csv", true},
+		{"arn:aws:s3:::bucket/*/data.csv", "arn:aws:s3:::bucket/folder/other.csv", false},
+		{"arn:aws:s3:::bucket-*-prod/*", "arn:aws:s3:::bucket-us-prod/key", true},
+		{"arn:aws:s3:::bucket-*-prod/*", "arn:aws:s3:::bucket-us-dev/key", false},
+		// Multiple wildcards
+		{"arn:aws:logs:*:*:log-group:*", "arn:aws:logs:us-east-1:123:log-group:my-logs", true},
+		{"arn:aws:logs:*:*:log-group:*", "arn:aws:logs:us-east-1:123:other:my-logs", false},
+		// Exact match (no wildcards)
+		{"arn:aws:s3:::exact-bucket", "arn:aws:s3:::exact-bucket", true},
+		{"arn:aws:s3:::exact-bucket", "arn:aws:s3:::other-bucket", false},
 	}
 
 	for _, tt := range tests {
 		result := matchResourcePattern(tt.pattern, tt.resource)
 		if result != tt.expected {
 			t.Errorf("matchResourcePattern(%q, %q) = %v, want %v", tt.pattern, tt.resource, result, tt.expected)
+		}
+	}
+}
+
+func TestGlobMatch(t *testing.T) {
+	tests := []struct {
+		pattern  string
+		value    string
+		expected bool
+	}{
+		// Basic
+		{"*", "anything", true},
+		{"exact", "exact", true},
+		{"exact", "other", false},
+		// Suffix wildcard
+		{"prefix*", "prefixsuffix", true},
+		{"prefix*", "other", false},
+		// Prefix wildcard
+		{"*suffix", "anysuffix", true},
+		{"*suffix", "anyother", false},
+		// Mid-string wildcard
+		{"pre*suf", "presuf", true},
+		{"pre*suf", "pre-middle-suf", true},
+		{"pre*suf", "pre-middle-other", false},
+		// Multiple wildcards
+		{"a*b*c", "abc", true},
+		{"a*b*c", "aXbYc", true},
+		{"a*b*c", "aXbY", false},
+		{"*a*b*", "xaxbx", true},
+		// Empty pattern segments
+		{"**", "anything", true},
+		// Empty value
+		{"*", "", true},
+		{"a", "", false},
+	}
+
+	for _, tt := range tests {
+		result := globMatch(tt.pattern, tt.value)
+		if result != tt.expected {
+			t.Errorf("globMatch(%q, %q) = %v, want %v", tt.pattern, tt.value, result, tt.expected)
 		}
 	}
 }

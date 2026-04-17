@@ -137,27 +137,50 @@ func matchesStatement(stmt internal.PolicyStatement, action, resource string) bo
 }
 
 // matchActionPattern checks if an IAM action pattern matches an action.
-// Actions are case-insensitive in IAM.
+// Actions are case-insensitive in IAM. Supports * wildcards anywhere in the pattern.
 func matchActionPattern(pattern, action string) bool {
-	if pattern == "*" {
-		return true
-	}
-	if strings.HasSuffix(pattern, "*") {
-		return strings.HasPrefix(strings.ToLower(action), strings.ToLower(strings.TrimSuffix(pattern, "*")))
-	}
-	return strings.EqualFold(pattern, action)
+	return globMatch(strings.ToLower(pattern), strings.ToLower(action))
 }
 
 // matchResourcePattern checks if an IAM resource pattern matches a resource ARN.
 // Resource ARNs contain case-sensitive components (e.g., S3 object keys).
+// Supports * wildcards anywhere in the pattern.
 func matchResourcePattern(pattern, resource string) bool {
+	return globMatch(pattern, resource)
+}
+
+// globMatch implements IAM-style wildcard matching where * matches any sequence
+// of characters. Handles mid-string wildcards like arn:aws:s3:::bucket/*/data.csv.
+func globMatch(pattern, value string) bool {
 	if pattern == "*" {
 		return true
 	}
-	if strings.HasSuffix(pattern, "*") {
-		return strings.HasPrefix(resource, strings.TrimSuffix(pattern, "*"))
+
+	// Split pattern on * and match each segment in sequence
+	segments := strings.Split(pattern, "*")
+
+	// No wildcards — exact match
+	if len(segments) == 1 {
+		return pattern == value
 	}
-	return pattern == resource
+
+	// First segment must match the start
+	if !strings.HasPrefix(value, segments[0]) {
+		return false
+	}
+	remaining := value[len(segments[0]):]
+
+	// Middle segments must appear in order
+	for i := 1; i < len(segments)-1; i++ {
+		idx := strings.Index(remaining, segments[i])
+		if idx < 0 {
+			return false
+		}
+		remaining = remaining[idx+len(segments[i]):]
+	}
+
+	// Last segment must match the end
+	return strings.HasSuffix(remaining, segments[len(segments)-1])
 }
 
 // AnalyzeStatements analyzes matched statements to determine the cause of denial.
