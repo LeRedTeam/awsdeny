@@ -209,21 +209,12 @@ If any API call fails, awsdeny gracefully falls back to offline analysis.
 - **No telemetry** — zero phone-home, zero analytics, zero tracking
 - **No data transmitted** — all analysis is local (AWS API calls only with `--enrich`)
 - **Credential sanitization** — output is scanned for access keys, secret keys, session tokens, and known STS token patterns
-- **Offline license validation** — Ed25519 signature verification, no license server
+- **Offline license validation** — cryptographic signature verification, no license server
 - **All AWS partitions** — supports `aws`, `aws-us-gov`, and `aws-cn`
 
-## Compared to other tools
+## How is this different?
 
-| Tool | Generates policies | Lints policies | Audits permissions | **Explains errors** | **Suggests fixes** |
-|---|---|---|---|---|---|
-| AWS IAM Access Analyzer | | Yes | Yes | | |
-| iamlive | Yes | | | | |
-| Policy Sentry | Yes | | | | |
-| Parliament | | Yes | | | |
-| Cloudsplaining | | | Yes | | |
-| **awsdeny** | | | | **Yes** | **Yes** |
-
-Nobody else explains AccessDenied errors with actionable fix suggestions. The space is empty.
+Existing IAM tools generate policies, lint policies, or audit permissions. None of them explain **why a specific API call failed** or **what to change to fix it**. `awsdeny` fills that gap — it's a debugging tool, not a policy tool.
 
 ## License
 
