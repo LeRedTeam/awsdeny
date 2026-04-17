@@ -362,6 +362,109 @@ OUT=$($BINARY explain --error "User: arn:aws:iam::111:user/dev is not authorized
 HEURISTIC=$(echo "$OUT" | jq -r '.analysis.matched_heuristic')
 assert_contains "$HEURISTIC" "XACCT-001" "JSON heuristic: XACCT-001 for cross-account AssumeRole"
 
+# ══════════════════════════════════════════════
+# New feature tests
+# ══════════════════════════════════════════════
+
+echo ""
+echo "--- Feature 1: Policy snippets in XACCT-001 ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::111:user/dev is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::222:role/TargetRole" 2>&1)
+assert_contains "$OUT" '"Effect": "Allow"' "Snippet XACCT-001: has JSON policy"
+assert_contains "$OUT" '"Principal"' "Snippet XACCT-001: has Principal field"
+assert_contains "$OUT" "arn:aws:iam::111:user/dev" "Snippet XACCT-001: uses actual principal ARN"
+
+echo ""
+echo "--- Feature 1: Policy snippets in BOUNDARY-001 ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key with an implicit deny in a permissions boundary" 2>&1)
+assert_contains "$OUT" '"Effect": "Allow"' "Snippet BOUNDARY: has JSON policy"
+assert_contains "$OUT" "s3:GetObject" "Snippet BOUNDARY: includes action"
+assert_contains "$OUT" "arn:aws:s3:::bucket/key" "Snippet BOUNDARY: includes resource"
+
+echo ""
+echo "--- Feature 1: Policy snippets in SESSION-001 ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:PutObject on resource: arn:aws:s3:::bucket/key with an implicit deny in a session policy" 2>&1)
+assert_contains "$OUT" '"Effect": "Allow"' "Snippet SESSION: has JSON policy"
+assert_contains "$OUT" "s3:PutObject" "Snippet SESSION: includes action"
+
+echo ""
+echo "--- Feature 1: Policy snippets in RSPOL-003 (KMS) ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: kms:Decrypt on resource: arn:aws:kms:us-east-1:123:key/abc because no resource-based policy allows the kms:Decrypt action" 2>&1)
+assert_contains "$OUT" "key policy" "Snippet KMS: mentions key policy"
+assert_contains "$OUT" "kms:Decrypt" "Snippet KMS: includes action"
+
+echo ""
+echo "--- Feature 1: IDENT-001 still has snippet ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: dynamodb:GetItem on resource: arn:aws:dynamodb:us-east-1:123:table/MyTable because no identity-based policy allows the dynamodb:GetItem action" 2>&1)
+assert_contains "$OUT" '"Effect": "Allow"' "Snippet IDENT: has JSON policy"
+assert_contains "$OUT" "dynamodb:GetItem" "Snippet IDENT: includes action"
+assert_contains "$OUT" "arn:aws:dynamodb" "Snippet IDENT: includes resource"
+
+echo ""
+echo "--- Feature 3: Typo detection (s3:GetObjects plural) ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObjects on resource: arn:aws:s3:::bucket/key" --format json 2>&1)
+HEURISTIC=$(echo "$OUT" | jq -r '.analysis.matched_heuristic')
+assert_contains "$HEURISTIC" "TYPO-001" "Typo: detects s3:GetObjects"
+assert_contains "$OUT" "s3:GetObject" "Typo: suggests correct action"
+assert_contains "$OUT" "Did you mean" "Typo: asks Did you mean"
+
+echo ""
+echo "--- Feature 3: Typo detection (s3:PutObjec missing t) ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:PutObjec on resource: arn:aws:s3:::bucket/key" --format json 2>&1)
+HEURISTIC=$(echo "$OUT" | jq -r '.analysis.matched_heuristic')
+assert_contains "$HEURISTIC" "TYPO-001" "Typo: detects s3:PutObjec"
+
+echo ""
+echo "--- Feature 3: No typo for exact match ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key" --format json 2>&1)
+HEURISTIC=$(echo "$OUT" | jq -r '.analysis.matched_heuristic // "none"')
+if [ "$HEURISTIC" = "TYPO-001" ]; then
+    fail "Typo: should NOT fire for exact action" "got TYPO-001 for s3:GetObject"
+else
+    pass "Typo: does not fire for exact action"
+fi
+
+echo ""
+echo "--- Feature 3: No typo for case-only difference ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:getobject on resource: arn:aws:s3:::bucket/key" --format json 2>&1)
+HEURISTIC=$(echo "$OUT" | jq -r '.analysis.matched_heuristic // "none"')
+if [ "$HEURISTIC" = "TYPO-001" ]; then
+    fail "Typo: should NOT fire for case-only diff" "got TYPO-001 for s3:getobject"
+else
+    pass "Typo: does not fire for case-only difference"
+fi
+
+echo ""
+echo "--- Feature 4: CloudWatch Insights query (with action + principal) ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key" 2>&1)
+assert_contains "$OUT" "CloudWatch Insights query" "Insights: shows query header"
+assert_contains "$OUT" "filter" "Insights: has filter clause"
+assert_contains "$OUT" "errorCode" "Insights: filters by errorCode"
+assert_contains "$OUT" "eventName" "Insights: filters by eventName"
+assert_contains "$OUT" "userIdentity.arn" "Insights: filters by principal"
+assert_contains "$OUT" "limit 20" "Insights: limits results"
+
+echo ""
+echo "--- Feature 4: CloudWatch Insights with CLI wrapper ---"
+OUT=$($BINARY explain --error "An error occurred (AccessDeniedException) when calling the Invoke operation: User: arn:aws:iam::123:role/MyRole is not authorized to perform: lambda:InvokeFunction on resource: arn:aws:lambda:us-east-1:123:function:my-func because no identity-based policy allows the lambda:InvokeFunction action" 2>&1)
+assert_contains "$OUT" "CloudWatch Insights" "Insights CLI: shows query"
+assert_contains "$OUT" "InvokeFunction" "Insights CLI: has eventName from action"
+assert_contains "$OUT" "AccessDeniedException" "Insights CLI: has error code"
+
+echo ""
+echo "--- Feature 4: No Insights for bare Access Denied (not enough context) ---"
+OUT=$($BINARY explain --error "Access Denied" 2>&1)
+if echo "$OUT" | grep -qi "CloudWatch Insights"; then
+    fail "Insights: should NOT show for bare Access Denied" "showed query with no context"
+else
+    pass "Insights: no query for bare Access Denied (insufficient context)"
+fi
+
+echo ""
+echo "--- Feature 4: Insights query is valid syntax ---"
+OUT=$($BINARY explain --error "User: arn:aws:iam::123:role/MyRole is not authorized to perform: s3:GetObject on resource: arn:aws:s3:::bucket/key" 2>&1)
+assert_contains "$OUT" "fields @timestamp" "Insights syntax: starts with fields"
+assert_contains "$OUT" "sort @timestamp desc" "Insights syntax: has sort"
+
 # ──────────────────────────────────────────────
 echo ""
 echo "========================================"
