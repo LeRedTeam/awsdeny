@@ -17,7 +17,7 @@ jobs:
     name: "Basic: error input with all fields"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action
         id: explain
@@ -101,7 +101,7 @@ jobs:
     name: "SCP: explicit deny with policy ARN"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action with SCP error
         id: explain
@@ -139,7 +139,7 @@ jobs:
     name: "Cross-account: AssumeRole"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action with cross-account error
         id: explain
@@ -171,7 +171,7 @@ jobs:
     name: "CLI wrapper: Lambda invoke"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action with CLI-wrapped error
         id: explain
@@ -202,7 +202,7 @@ jobs:
     name: "Typo detection: s3:GetObjects"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action with typo
         id: explain
@@ -233,7 +233,7 @@ jobs:
     name: "Minimal: bare Access Denied"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action with minimal error
         id: explain
@@ -260,7 +260,7 @@ jobs:
     name: "Non-ARN resource: Secrets Manager"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action with non-ARN resource
         id: explain
@@ -298,7 +298,7 @@ jobs:
     name: "Special chars in error message"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run awsdeny action with special characters
         id: explain
