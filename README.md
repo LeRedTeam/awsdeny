@@ -142,7 +142,7 @@ Level 1 and `--policy-file` are free and work offline. Levels 2-4 with `--enrich
   run: aws s3 cp ./dist s3://my-bucket/
   continue-on-error: true
 
-- uses: leredteam/awsdeny@v1
+- uses: LeRedTeam/awsdeny@v0.1.0
   if: failure()
   with:
     error: ${{ steps.deploy.outputs.stderr }}
